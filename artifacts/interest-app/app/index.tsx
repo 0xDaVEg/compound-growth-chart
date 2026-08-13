@@ -759,8 +759,10 @@ export default function CalculatorScreen() {
             <View style={styles.heroDrawdownContent}>
               <Text style={styles.heroStatLabel}>Annual Drawdown (3.5%)</Text>
               <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                {formatCurrency(totalFinal * 0.035)}
-                <Text style={styles.heroDrawdownSub}> / yr</Text>
+                {formatCurrency((touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal) * 0.035)}
+                <Text style={styles.heroDrawdownSub}>
+                  {" "}/ yr{touchMonth !== null ? ` · ${yearAtMonthOffset(touchMonth)}` : ""}
+                </Text>
               </Text>
             </View>
             {drawdownActive && (
