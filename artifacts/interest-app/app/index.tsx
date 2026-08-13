@@ -104,13 +104,14 @@ function simulateEntries(
   months: number,
   drawdownAnnual: number,
   drawdownStartMonth: number | null
-): { perEntry: MonthData[][]; totalWithdrawn: number } {
+): { perEntry: MonthData[][]; totalWithdrawn: number; withdrawnByMonth: number[] } {
   const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
   const monthlyDraw =
     drawdownAnnual > 0 && drawdownStartMonth !== null ? drawdownAnnual / 12 : 0;
   let totalWithdrawn = 0;
+  const withdrawnByMonth: number[] = [0];
   for (let m = 1; m <= months; m++) {
     for (let i = 0; i < balances.length; i++) {
       balances[i] *= 1 + mrs[i];
@@ -119,6 +120,7 @@ function simulateEntries(
         balances[i] += simEntries[i].yearlyContribution;
       }
     }
+    let withdrawnThisMonth = 0;
     if (monthlyDraw > 0 && m > drawdownStartMonth!) {
       const available = balances.reduce((s, b) => s + Math.max(0, b), 0);
       const take = Math.min(monthlyDraw, available);
@@ -127,13 +129,15 @@ function simulateEntries(
           if (balances[i] > 0) balances[i] -= (balances[i] / available) * take;
         }
         totalWithdrawn += take;
+        withdrawnThisMonth = take;
       }
     }
+    withdrawnByMonth.push(withdrawnThisMonth);
     for (let i = 0; i < balances.length; i++) {
       perEntry[i].push({ month: m, balance: balances[i] });
     }
   }
-  return { perEntry, totalWithdrawn };
+  return { perEntry, totalWithdrawn, withdrawnByMonth };
 }
 
 function formatCurrency(amount: number): string {
@@ -680,17 +684,29 @@ export default function CalculatorScreen() {
   ], [entryData, visibleTotalData, hiddenIds]);
 
   const yearlyTotals = useMemo(() => {
-    const rows: { year: number; total: number; byEntry: number[] }[] = [];
+    const rows: { year: number; total: number; byEntry: number[]; interest: number; drawdown: number }[] = [];
+    let cumWithdrawn = 0;
     for (let y = 1; y * 12 <= months; y++) {
       const m = y * 12;
+      let yearWithdrawn = 0;
+      for (let k = m - 11; k <= m; k++) yearWithdrawn += simResult.withdrawnByMonth[k] ?? 0;
+      cumWithdrawn += yearWithdrawn;
+      const investedSoFar = parsedEntries.reduce(
+        (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * y,
+        0
+      );
+      const total = totalData[m]?.balance ?? 0;
       rows.push({
         year: y,
-        total: totalData[m]?.balance ?? 0,
+        total,
         byEntry: entryData.map((e) => e.data[m]?.balance ?? 0),
+        // Cumulative interest to date; money already withdrawn still counts
+        interest: total + cumWithdrawn - investedSoFar,
+        drawdown: yearWithdrawn,
       });
     }
     return rows;
-  }, [totalData, entryData, months]);
+  }, [totalData, entryData, months, simResult, parsedEntries]);
 
   const handlePreset = (m: number) => {
     Haptics.selectionAsync();
@@ -1008,6 +1024,16 @@ export default function CalculatorScreen() {
                     Total
                   </Text>
                 </View>
+                <View style={styles.tableDataCol}>
+                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]} numberOfLines={1}>
+                    Interest
+                  </Text>
+                </View>
+                <View style={styles.tableDataCol}>
+                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]} numberOfLines={1}>
+                    Drawdown
+                  </Text>
+                </View>
               </View>
 
               {/* Now row */}
@@ -1021,6 +1047,8 @@ export default function CalculatorScreen() {
                 <Text style={[styles.tableCell, styles.tableCellTotal]}>
                   {formatCompact(totalInvested)}
                 </Text>
+                <Text style={[styles.tableCell, { color: "#12a195" }]}>—</Text>
+                <Text style={[styles.tableCell, { color: "#f59e0b" }]}>—</Text>
               </View>
 
               {/* Year rows */}
@@ -1043,6 +1071,12 @@ export default function CalculatorScreen() {
                   ))}
                   <Text style={[styles.tableCell, styles.tableCellTotal]}>
                     {formatCompact(row.total)}
+                  </Text>
+                  <Text style={[styles.tableCell, { color: "#12a195" }]}>
+                    {formatCompact(row.interest)}
+                  </Text>
+                  <Text style={[styles.tableCell, { color: "#f59e0b" }]}>
+                    {row.drawdown > 0 ? formatCompact(row.drawdown) : "—"}
                   </Text>
                 </View>
               ))}
