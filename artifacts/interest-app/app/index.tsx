@@ -137,6 +137,9 @@ const TIME_PRESETS = [
   { label: "3Y", months: 36 },
   { label: "5Y", months: 60 },
   { label: "10Y", months: 120 },
+  { label: "20Y", months: 240 },
+  { label: "30Y", months: 360 },
+  { label: "40Y", months: 480 },
 ];
 
 interface LineData {
@@ -234,7 +237,7 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
   }, [entryLines, totalLine, chartWidth, months]);
 
   const xLabels = useMemo(() => {
-    const labelStep = months <= 24 ? 6 : months <= 60 ? 12 : 24;
+    const labelStep = months <= 24 ? 6 : months <= 60 ? 12 : months <= 120 ? 24 : months <= 360 ? 60 : 120;
     const labels: { x: number; text: string }[] = [];
     for (let m = 0; m <= months; m += labelStep) {
       labels.push({
@@ -1035,9 +1038,10 @@ function makeStyles(
       fontFamily: "Inter_600SemiBold",
       color: colors.foreground,
     },
-    presetRow: { flexDirection: "row", gap: 8 },
+    presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     presetBtn: {
-      flex: 1,
+      flexBasis: "20%",
+      flexGrow: 1,
       paddingVertical: 11,
       borderRadius: 12,
       backgroundColor: colors.secondary,
