@@ -39,7 +39,7 @@ const TOTAL_COLOR = "#1a2d5a";
 const BIRTH_DATE = new Date(1979, 11, 10); // December 10, 1979
 
 /** Annual inflation applied to the retirement income drawdown. */
-const INFLATION_RATE = 0.02;
+const INFLATION_RATE = 0.03;
 
 function ageAtMonthOffset(monthOffset: number): number {
   const now = new Date();
@@ -907,7 +907,7 @@ export default function CalculatorScreen() {
           </View>
           <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
             {drawdownActive
-              ? "Withdrawn monthly · rises 2% each year with inflation"
+              ? "Withdrawn monthly · rises 3% each year with inflation"
               : parsedDrawdown <= 0
               ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
               : drawdownStart === null
