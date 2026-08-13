@@ -78,21 +78,54 @@ interface MonthData {
   balance: number;
 }
 
-function calcData(principal: number, annualRate: number, months: number, yearlyContribution: number = 0): MonthData[] {
-  const mr = annualRate / 100 / 12;
-  const result: MonthData[] = [];
-  let balance = principal;
-  for (let m = 0; m <= months; m++) {
-    if (m > 0) {
-      balance *= (1 + mr);
+interface SimEntry {
+  principal: number;
+  annualRate: number;
+  yearlyContribution: number;
+}
+
+/**
+ * Simulate all entries jointly so a shared monthly drawdown can be
+ * withdrawn pro-rata across balances. Before drawdownStartMonth the
+ * entries compound uninterrupted; from the month after it, 1/12 of
+ * drawdownAnnual is deducted each month (split in proportion to each
+ * entry's balance) until the period ends or the pot is exhausted.
+ */
+function simulateEntries(
+  simEntries: SimEntry[],
+  months: number,
+  drawdownAnnual: number,
+  drawdownStartMonth: number | null
+): { perEntry: MonthData[][]; totalWithdrawn: number } {
+  const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
+  const balances = simEntries.map((e) => e.principal);
+  const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
+  const monthlyDraw =
+    drawdownAnnual > 0 && drawdownStartMonth !== null ? drawdownAnnual / 12 : 0;
+  let totalWithdrawn = 0;
+  for (let m = 1; m <= months; m++) {
+    for (let i = 0; i < balances.length; i++) {
+      balances[i] *= 1 + mrs[i];
       // Add yearly contribution at the end of each 12-month period
-      if (yearlyContribution > 0 && m % 12 === 0) {
-        balance += yearlyContribution;
+      if (simEntries[i].yearlyContribution > 0 && m % 12 === 0) {
+        balances[i] += simEntries[i].yearlyContribution;
       }
     }
-    result.push({ month: m, balance });
+    if (monthlyDraw > 0 && m > drawdownStartMonth!) {
+      const available = balances.reduce((s, b) => s + Math.max(0, b), 0);
+      const take = Math.min(monthlyDraw, available);
+      if (take > 0) {
+        for (let i = 0; i < balances.length; i++) {
+          if (balances[i] > 0) balances[i] -= (balances[i] / available) * take;
+        }
+        totalWithdrawn += take;
+      }
+    }
+    for (let i = 0; i < balances.length; i++) {
+      perEntry[i].push({ month: m, balance: balances[i] });
+    }
   }
-  return result;
+  return { perEntry, totalWithdrawn };
 }
 
 function formatCurrency(amount: number): string {
@@ -155,9 +188,11 @@ interface MultiChartProps {
   mutedColor: string;
   touchMonth: number | null;
   onTouchMonthChange: (month: number | null) => void;
+  drawdownStartMonth?: number | null;
+  onSelectMonth?: (month: number) => void;
 }
 
-function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange }: MultiChartProps) {
+function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange, drawdownStartMonth = null, onSelectMonth }: MultiChartProps) {
   const [chartWidth, setChartWidth] = useState(SCREEN_WIDTH - 72);
   const height = 200;
   const pad = { top: 16, right: 12, bottom: 30, left: 48 };
@@ -167,9 +202,15 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
   const cH = height - pad.top - pad.bottom;
   const entryLines = lines.filter((l) => !l.isTotal);
   const totalLine = lines.find((l) => l.isTotal) ?? null;
-  // maxBal must reflect cumulative stack top, not just individual lines
-  const cumMaxAtEnd = entryLines.reduce((s, l) => s + (l.data[months]?.balance ?? 0), 0);
-  const maxBal = Math.max(cumMaxAtEnd, 1);
+  // maxBal must reflect the peak of the cumulative stack top — with
+  // drawdown active the balance can fall, so the end value is not the max
+  let cumPeak = 0;
+  for (let m = 0; m <= months; m++) {
+    let s = 0;
+    for (const l of entryLines) s += l.data[m]?.balance ?? 0;
+    if (s > cumPeak) cumPeak = s;
+  }
+  const maxBal = Math.max(cumPeak, 1);
 
   // Compute nice linear y-axis ticks (4-6 steps)
   const yStep = niceStep(maxBal / 5);
@@ -185,6 +226,7 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
     const ratio = Math.max(0, Math.min(1, (locationX - pad.left) / cW));
     const month = Math.round(ratio * months);
     if (!isFinite(month)) return;
+    onSelectMonth?.(month);
     // Tap near the same position toggles the tooltip off
     const threshold = Math.max(1, Math.round(months * 0.04));
     if (touchMonth !== null && Math.abs(month - touchMonth) <= threshold) {
@@ -326,6 +368,15 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
                 strokeDasharray="5 3" opacity="0.9"
               />
             ) : null}
+
+            {/* Drawdown start marker */}
+            {drawdownStartMonth !== null && drawdownStartMonth <= months && (
+              <SvgLine
+                x1={sx(drawdownStartMonth)} y1={pad.top}
+                x2={sx(drawdownStartMonth)} y2={height - pad.bottom}
+                stroke="#f59e0b" strokeWidth="1.5" opacity="0.85"
+              />
+            )}
 
             {/* Crosshair */}
             {crosshairX !== null && (
@@ -491,22 +542,31 @@ export default function CalculatorScreen() {
   const [months, setMonths] = useState(120);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [touchMonth, setTouchMonth] = useState<number | null>(null);
+  const [drawdownAmount, setDrawdownAmount] = useState("");
+  const [drawdownStart, setDrawdownStart] = useState<number | null>(null);
   const loaded = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet(["calc_entries", "calc_months"]).then(([[, rawEntries], [, rawMonths]]) => {
-      if (rawEntries) {
-        try {
-          const parsed = JSON.parse(rawEntries) as Entry[];
-          if (Array.isArray(parsed) && parsed.length > 0) setEntries(parsed);
-        } catch {}
+    AsyncStorage.multiGet(["calc_entries", "calc_months", "calc_drawdown", "calc_drawdown_start"]).then(
+      ([[, rawEntries], [, rawMonths], [, rawDrawdown], [, rawDrawdownStart]]) => {
+        if (rawEntries) {
+          try {
+            const parsed = JSON.parse(rawEntries) as Entry[];
+            if (Array.isArray(parsed) && parsed.length > 0) setEntries(parsed);
+          } catch {}
+        }
+        if (rawMonths) {
+          const m = parseInt(rawMonths, 10);
+          if (!isNaN(m)) setMonths(m);
+        }
+        if (rawDrawdown) setDrawdownAmount(rawDrawdown);
+        if (rawDrawdownStart) {
+          const s = parseInt(rawDrawdownStart, 10);
+          if (!isNaN(s) && s >= 0) setDrawdownStart(s);
+        }
+        loaded.current = true;
       }
-      if (rawMonths) {
-        const m = parseInt(rawMonths, 10);
-        if (!isNaN(m)) setMonths(m);
-      }
-      loaded.current = true;
-    });
+    );
   }, []);
 
   useEffect(() => {
@@ -514,8 +574,10 @@ export default function CalculatorScreen() {
     AsyncStorage.multiSet([
       ["calc_entries", JSON.stringify(entries)],
       ["calc_months", String(months)],
+      ["calc_drawdown", drawdownAmount],
+      ["calc_drawdown_start", drawdownStart === null ? "" : String(drawdownStart)],
     ]);
-  }, [entries, months]);
+  }, [entries, months, drawdownAmount, drawdownStart]);
 
   const parsedEntries = useMemo(
     () =>
@@ -529,13 +591,31 @@ export default function CalculatorScreen() {
     [entries]
   );
 
+  const parsedDrawdown = parseFloat(drawdownAmount.replace(/,/g, "")) || 0;
+  const drawdownActive = parsedDrawdown > 0 && drawdownStart !== null && drawdownStart < months;
+
+  const simResult = useMemo(
+    () =>
+      simulateEntries(
+        parsedEntries.map((e) => ({
+          principal: e.parsedPrincipal,
+          annualRate: e.parsedRate,
+          yearlyContribution: e.parsedYearlyContribution,
+        })),
+        months,
+        parsedDrawdown,
+        drawdownStart
+      ),
+    [parsedEntries, months, parsedDrawdown, drawdownStart]
+  );
+
   const entryData = useMemo(
     () =>
-      parsedEntries.map((e) => ({
+      parsedEntries.map((e, i) => ({
         ...e,
-        data: calcData(e.parsedPrincipal, e.parsedRate, months, e.parsedYearlyContribution),
+        data: simResult.perEntry[i],
       })),
-    [parsedEntries, months]
+    [parsedEntries, simResult]
   );
 
   const totalData: MonthData[] = useMemo(() => {
@@ -550,7 +630,8 @@ export default function CalculatorScreen() {
     (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * Math.floor(months / 12),
     0
   );
-  const totalInterest = totalFinal - totalInvested;
+  // Withdrawn amounts still came from growth, so count them as interest earned
+  const totalInterest = totalFinal + simResult.totalWithdrawn - totalInvested;
 
   const visibleEntryData = useMemo(
     () => entryData.filter((e) => !hiddenIds.has(e.id)),
@@ -674,6 +755,17 @@ export default function CalculatorScreen() {
                 <Text style={styles.heroDrawdownSub}> / yr</Text>
               </Text>
             </View>
+            {drawdownActive && (
+              <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
+                <Text style={styles.heroStatLabel}>
+                  Actual Drawdown (from age {ageAtMonthOffset(drawdownStart!)})
+                </Text>
+                <Text style={[styles.heroStatValue, styles.drawdownText]}>
+                  {formatCurrency(parsedDrawdown)}
+                  <Text style={styles.heroDrawdownSub}> / yr · {formatCurrency(simResult.totalWithdrawn)} drawn</Text>
+                </Text>
+              </View>
+            )}
           </View>
         </LinearGradient>
 
@@ -685,6 +777,10 @@ export default function CalculatorScreen() {
             mutedColor={colors.mutedForeground}
             touchMonth={touchMonth}
             onTouchMonthChange={setTouchMonth}
+            drawdownStartMonth={parsedDrawdown > 0 ? drawdownStart : null}
+            onSelectMonth={(m) => {
+              if (parsedDrawdown > 0) setDrawdownStart(m);
+            }}
           />
 
           {/* Legend */}
@@ -745,6 +841,50 @@ export default function CalculatorScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+
+          {/* Actual Drawdown */}
+          <View style={styles.chartDivider} />
+          <View style={styles.timeLabelRow}>
+            <Text style={styles.fieldLabel}>ACTUAL DRAWDOWN</Text>
+            {parsedDrawdown > 0 && drawdownStart !== null && (
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setDrawdownStart(null);
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.drawdownClearText}>Clear start</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.drawdownRow}>
+            <View style={[styles.inputWrap, { width: 150 }]}>
+              <Text style={styles.inputAffix}>£</Text>
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                value={drawdownAmount}
+                onChangeText={setDrawdownAmount}
+                keyboardType="numeric"
+                placeholder="Optional"
+                placeholderTextColor={colors.mutedForeground}
+              />
+              <Text style={styles.inputAffix}>/yr</Text>
+            </View>
+            <Text
+              style={[
+                styles.drawdownHint,
+                parsedDrawdown > 0 && styles.drawdownHintActive,
+              ]}
+              numberOfLines={2}
+            >
+              {parsedDrawdown <= 0
+                ? "Withdrawn monthly from the total"
+                : drawdownStart === null
+                ? "Tap the chart to set the start date"
+                : `from age ${ageAtMonthOffset(drawdownStart)} · ${yearAtMonthOffset(drawdownStart)}`}
+            </Text>
           </View>
         </View>
 
@@ -1038,6 +1178,28 @@ function makeStyles(
       fontFamily: "Inter_600SemiBold",
       color: colors.foreground,
     },
+    drawdownRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    drawdownHint: {
+      flex: 1,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.mutedForeground,
+    },
+    drawdownHintActive: {
+      fontFamily: "Inter_600SemiBold",
+      color: "#f59e0b",
+    },
+    drawdownClearText: {
+      fontSize: 12,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.mutedForeground,
+      textDecorationLine: "underline" as const,
+    },
+
     presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     presetBtn: {
       flexBasis: "20%",
@@ -1132,6 +1294,7 @@ function makeStyles(
     },
     textInput: {
       flex: 1,
+      minWidth: 0,
       fontSize: 15,
       fontFamily: "Inter_500Medium",
       color: colors.foreground,
