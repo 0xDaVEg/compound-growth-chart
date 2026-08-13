@@ -38,6 +38,9 @@ const TOTAL_COLOR = "#1a2d5a";
 
 const BIRTH_DATE = new Date(1979, 11, 10); // December 10, 1979
 
+/** Annual inflation applied to the retirement income drawdown. */
+const INFLATION_RATE = 0.02;
+
 function ageAtMonthOffset(monthOffset: number): number {
   const now = new Date();
   const future = new Date(now.getFullYear(), now.getMonth() + monthOffset, 15);
@@ -98,6 +101,7 @@ interface SimEntry {
  * entries compound uninterrupted; from the month after it, 1/12 of
  * drawdownAnnual is deducted each month (split in proportion to each
  * entry's balance) until the period ends or the pot is exhausted.
+ * The annual amount rises by INFLATION_RATE each year of retirement.
  */
 function simulateEntries(
   simEntries: SimEntry[],
@@ -108,8 +112,7 @@ function simulateEntries(
   const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
-  const monthlyDraw =
-    drawdownAnnual > 0 && drawdownStartMonth !== null ? drawdownAnnual / 12 : 0;
+  const drawing = drawdownAnnual > 0 && drawdownStartMonth !== null;
   let totalWithdrawn = 0;
   const withdrawnByMonth: number[] = [0];
   for (let m = 1; m <= months; m++) {
@@ -121,7 +124,10 @@ function simulateEntries(
       }
     }
     let withdrawnThisMonth = 0;
-    if (monthlyDraw > 0 && m > drawdownStartMonth!) {
+    if (drawing && m > drawdownStartMonth!) {
+      // Inflation-adjust the annual amount for each full year of retirement
+      const yearsIn = Math.floor((m - drawdownStartMonth! - 1) / 12);
+      const monthlyDraw = (drawdownAnnual / 12) * Math.pow(1 + INFLATION_RATE, yearsIn);
       const available = balances.reduce((s, b) => s + Math.max(0, b), 0);
       const take = Math.min(monthlyDraw, available);
       if (take > 0) {
@@ -901,15 +907,15 @@ export default function CalculatorScreen() {
               />
             </View>
           </View>
-          {!drawdownActive && (
-            <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
-              {parsedDrawdown <= 0
-                ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
-                : drawdownStart === null
-                ? "Enter your retirement age"
-                : "Retirement falls beyond the selected time period"}
-            </Text>
-          )}
+          <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
+            {drawdownActive
+              ? "Withdrawn monthly · rises 2% each year with inflation"
+              : parsedDrawdown <= 0
+              ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
+              : drawdownStart === null
+              ? "Enter your retirement age"
+              : "Retirement falls beyond the selected time period"}
+          </Text>
         </View>
 
         {/* Entry Cards */}
