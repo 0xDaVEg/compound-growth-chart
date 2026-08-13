@@ -691,25 +691,23 @@ export default function CalculatorScreen() {
 
   const yearlyTotals = useMemo(() => {
     const rows: { year: number; total: number; byEntry: number[]; interest: number; drawdown: number }[] = [];
-    let cumWithdrawn = 0;
+    const yearlyContribs = parsedEntries.reduce((s, e) => s + e.parsedYearlyContribution, 0);
+    let prevTotal = totalData[0]?.balance ?? 0;
     for (let y = 1; y * 12 <= months; y++) {
       const m = y * 12;
       let yearWithdrawn = 0;
       for (let k = m - 11; k <= m; k++) yearWithdrawn += simResult.withdrawnByMonth[k] ?? 0;
-      cumWithdrawn += yearWithdrawn;
-      const investedSoFar = parsedEntries.reduce(
-        (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * y,
-        0
-      );
       const total = totalData[m]?.balance ?? 0;
       rows.push({
         year: y,
         total,
         byEntry: entryData.map((e) => e.data[m]?.balance ?? 0),
-        // Cumulative interest to date; money already withdrawn still counts
-        interest: total + cumWithdrawn - investedSoFar,
+        // Interest earned during this year: balance change plus what was
+        // withdrawn, minus contributions paid in
+        interest: total - prevTotal + yearWithdrawn - yearlyContribs,
         drawdown: yearWithdrawn,
       });
+      prevTotal = total;
     }
     return rows;
   }, [totalData, entryData, months, simResult, parsedEntries]);
