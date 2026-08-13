@@ -102,6 +102,8 @@ interface SimEntry {
  * drawdownAnnual is deducted each month (split in proportion to each
  * entry's balance) until the period ends or the pot is exhausted.
  * The annual amount rises by INFLATION_RATE each year of retirement.
+ * Yearly contributions stop once retirement (drawdownStartMonth) is
+ * reached, whether or not an income amount is set.
  */
 function simulateEntries(
   simEntries: SimEntry[],
@@ -118,8 +120,13 @@ function simulateEntries(
   for (let m = 1; m <= months; m++) {
     for (let i = 0; i < balances.length; i++) {
       balances[i] *= 1 + mrs[i];
-      // Add yearly contribution at the end of each 12-month period
-      if (simEntries[i].yearlyContribution > 0 && m % 12 === 0) {
+      // Add yearly contribution at the end of each 12-month period,
+      // but not once retirement has been reached
+      if (
+        simEntries[i].yearlyContribution > 0 &&
+        m % 12 === 0 &&
+        (drawdownStartMonth === null || m < drawdownStartMonth)
+      ) {
         balances[i] += simEntries[i].yearlyContribution;
       }
     }
@@ -644,8 +651,13 @@ export default function CalculatorScreen() {
   }, [entryData, months]);
 
   const totalFinal = totalData[totalData.length - 1]?.balance ?? 0;
+  // Contributions are made at each 12-month mark, but stop at retirement
+  const contribYears =
+    drawdownStart === null
+      ? Math.floor(months / 12)
+      : Math.min(Math.floor(months / 12), Math.max(0, Math.floor((drawdownStart - 1) / 12)));
   const totalInvested = parsedEntries.reduce(
-    (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * Math.floor(months / 12),
+    (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYears,
     0
   );
   // Withdrawn amounts still came from growth, so count them as interest earned
@@ -703,14 +715,16 @@ export default function CalculatorScreen() {
         total,
         byEntry: entryData.map((e) => e.data[m]?.balance ?? 0),
         // Interest earned during this year: balance change plus what was
-        // withdrawn, minus contributions paid in
-        interest: total - prevTotal + yearWithdrawn - yearlyContribs,
+        // withdrawn, minus contributions paid in (none after retirement)
+        interest:
+          total - prevTotal + yearWithdrawn -
+          (drawdownStart === null || m < drawdownStart ? yearlyContribs : 0),
         drawdown: yearWithdrawn,
       });
       prevTotal = total;
     }
     return rows;
-  }, [totalData, entryData, months, simResult, parsedEntries]);
+  }, [totalData, entryData, months, simResult, parsedEntries, drawdownStart]);
 
   const handlePreset = (m: number) => {
     Haptics.selectionAsync();
@@ -907,7 +921,7 @@ export default function CalculatorScreen() {
           </View>
           <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
             {drawdownActive
-              ? "Withdrawn monthly · rises 3% each year with inflation"
+              ? "Withdrawn monthly · rises 3% each year with inflation · contributions stop at retirement"
               : parsedDrawdown <= 0
               ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
               : drawdownStart === null
