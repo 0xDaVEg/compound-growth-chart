@@ -921,7 +921,7 @@ export default function CalculatorScreen() {
           </View>
           <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
             {drawdownActive
-              ? "Withdrawn monthly · rises 3% each year with inflation · contributions stop at retirement"
+              ? "Withdrawn monthly · rises 3% each year with inflation"
               : parsedDrawdown <= 0
               ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
               : drawdownStart === null
