@@ -56,6 +56,14 @@ function yearAtMonthOffset(monthOffset: number): number {
   return new Date(now.getFullYear(), now.getMonth() + monthOffset, 15).getFullYear();
 }
 
+/** Months from now until the birthday when the user turns targetAge (0 if already reached). */
+function monthOffsetAtAge(targetAge: number): number {
+  const now = new Date();
+  const target = new Date(BIRTH_DATE.getFullYear() + targetAge, BIRTH_DATE.getMonth(), BIRTH_DATE.getDate());
+  const offset = (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
+  return Math.max(0, offset);
+}
+
 function genId() {
   return Math.random().toString(36).slice(2, 9);
 }
@@ -189,10 +197,9 @@ interface MultiChartProps {
   touchMonth: number | null;
   onTouchMonthChange: (month: number | null) => void;
   drawdownStartMonth?: number | null;
-  onSelectMonth?: (month: number) => void;
 }
 
-function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange, drawdownStartMonth = null, onSelectMonth }: MultiChartProps) {
+function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange, drawdownStartMonth = null }: MultiChartProps) {
   const [chartWidth, setChartWidth] = useState(SCREEN_WIDTH - 72);
   const height = 200;
   const pad = { top: 16, right: 12, bottom: 30, left: 48 };
@@ -226,7 +233,6 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
     const ratio = Math.max(0, Math.min(1, (locationX - pad.left) / cW));
     const month = Math.round(ratio * months);
     if (!isFinite(month)) return;
-    onSelectMonth?.(month);
     // Tap near the same position toggles the tooltip off
     const threshold = Math.max(1, Math.round(months * 0.04));
     if (touchMonth !== null && Math.abs(month - touchMonth) <= threshold) {
@@ -543,12 +549,12 @@ export default function CalculatorScreen() {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [touchMonth, setTouchMonth] = useState<number | null>(null);
   const [drawdownAmount, setDrawdownAmount] = useState("");
-  const [drawdownStart, setDrawdownStart] = useState<number | null>(null);
+  const [retirementAge, setRetirementAge] = useState("");
   const loaded = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet(["calc_entries", "calc_months", "calc_drawdown", "calc_drawdown_start"]).then(
-      ([[, rawEntries], [, rawMonths], [, rawDrawdown], [, rawDrawdownStart]]) => {
+    AsyncStorage.multiGet(["calc_entries", "calc_months", "calc_drawdown", "calc_retirement_age"]).then(
+      ([[, rawEntries], [, rawMonths], [, rawDrawdown], [, rawRetirementAge]]) => {
         if (rawEntries) {
           try {
             const parsed = JSON.parse(rawEntries) as Entry[];
@@ -560,10 +566,7 @@ export default function CalculatorScreen() {
           if (!isNaN(m)) setMonths(m);
         }
         if (rawDrawdown) setDrawdownAmount(rawDrawdown);
-        if (rawDrawdownStart) {
-          const s = parseInt(rawDrawdownStart, 10);
-          if (!isNaN(s) && s >= 0) setDrawdownStart(s);
-        }
+        if (rawRetirementAge) setRetirementAge(rawRetirementAge);
         loaded.current = true;
       }
     );
@@ -575,9 +578,9 @@ export default function CalculatorScreen() {
       ["calc_entries", JSON.stringify(entries)],
       ["calc_months", String(months)],
       ["calc_drawdown", drawdownAmount],
-      ["calc_drawdown_start", drawdownStart === null ? "" : String(drawdownStart)],
+      ["calc_retirement_age", retirementAge],
     ]);
-  }, [entries, months, drawdownAmount, drawdownStart]);
+  }, [entries, months, drawdownAmount, retirementAge]);
 
   const parsedEntries = useMemo(
     () =>
@@ -592,6 +595,11 @@ export default function CalculatorScreen() {
   );
 
   const parsedDrawdown = parseFloat(drawdownAmount.replace(/,/g, "")) || 0;
+  const parsedRetirementAge = parseInt(retirementAge, 10);
+  const drawdownStart =
+    !isNaN(parsedRetirementAge) && parsedRetirementAge > 0
+      ? monthOffsetAtAge(parsedRetirementAge)
+      : null;
   const drawdownActive = parsedDrawdown > 0 && drawdownStart !== null && drawdownStart < months;
 
   const simResult = useMemo(
@@ -758,7 +766,7 @@ export default function CalculatorScreen() {
             {drawdownActive && (
               <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
                 <Text style={styles.heroStatLabel}>
-                  Actual Drawdown (from age {ageAtMonthOffset(drawdownStart!)})
+                  Retirement Income (from age {ageAtMonthOffset(drawdownStart!)})
                 </Text>
                 <Text style={[styles.heroStatValue, styles.drawdownText]}>
                   {formatCurrency(parsedDrawdown)}
@@ -777,10 +785,7 @@ export default function CalculatorScreen() {
             mutedColor={colors.mutedForeground}
             touchMonth={touchMonth}
             onTouchMonthChange={setTouchMonth}
-            drawdownStartMonth={parsedDrawdown > 0 ? drawdownStart : null}
-            onSelectMonth={(m) => {
-              if (parsedDrawdown > 0) setDrawdownStart(m);
-            }}
+            drawdownStartMonth={drawdownActive ? drawdownStart : null}
           />
 
           {/* Legend */}
@@ -843,49 +848,50 @@ export default function CalculatorScreen() {
             ))}
           </View>
 
-          {/* Actual Drawdown */}
+          {/* Retirement Income */}
           <View style={styles.chartDivider} />
           <View style={styles.timeLabelRow}>
-            <Text style={styles.fieldLabel}>ACTUAL DRAWDOWN</Text>
-            {parsedDrawdown > 0 && drawdownStart !== null && (
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setDrawdownStart(null);
-                }}
-                hitSlop={8}
-              >
-                <Text style={styles.drawdownClearText}>Clear start</Text>
-              </TouchableOpacity>
+            <Text style={styles.fieldLabel}>RETIREMENT INCOME</Text>
+            {drawdownActive && (
+              <Text style={styles.drawdownHintActive}>
+                from age {ageAtMonthOffset(drawdownStart!)} · {yearAtMonthOffset(drawdownStart!)}
+              </Text>
             )}
           </View>
           <View style={styles.drawdownRow}>
-            <View style={[styles.inputWrap, { width: 150 }]}>
+            <View style={[styles.inputWrap, { flex: 1 }]}>
               <Text style={styles.inputAffix}>£</Text>
               <TextInput
                 style={[styles.textInput, { flex: 1 }]}
                 value={drawdownAmount}
                 onChangeText={setDrawdownAmount}
                 keyboardType="numeric"
-                placeholder="Optional"
+                placeholder="Annual income"
                 placeholderTextColor={colors.mutedForeground}
               />
               <Text style={styles.inputAffix}>/yr</Text>
             </View>
-            <Text
-              style={[
-                styles.drawdownHint,
-                parsedDrawdown > 0 && styles.drawdownHintActive,
-              ]}
-              numberOfLines={2}
-            >
-              {parsedDrawdown <= 0
-                ? "Withdrawn monthly from the total"
-                : drawdownStart === null
-                ? "Tap the chart to set the start date"
-                : `from age ${ageAtMonthOffset(drawdownStart)} · ${yearAtMonthOffset(drawdownStart)}`}
-            </Text>
+            <View style={[styles.inputWrap, { width: 110 }]}>
+              <Text style={styles.inputAffix}>Age</Text>
+              <TextInput
+                style={[styles.textInput, { flex: 1 }]}
+                value={retirementAge}
+                onChangeText={setRetirementAge}
+                keyboardType="numeric"
+                placeholder="—"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
           </View>
+          {!drawdownActive && (
+            <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
+              {parsedDrawdown <= 0
+                ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
+                : drawdownStart === null
+                ? "Enter your retirement age"
+                : "Retirement falls beyond the selected time period"}
+            </Text>
+          )}
         </View>
 
         {/* Entry Cards */}
@@ -1193,13 +1199,6 @@ function makeStyles(
       fontFamily: "Inter_600SemiBold",
       color: "#f59e0b",
     },
-    drawdownClearText: {
-      fontSize: 12,
-      fontFamily: "Inter_600SemiBold",
-      color: colors.mutedForeground,
-      textDecorationLine: "underline" as const,
-    },
-
     presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     presetBtn: {
       flexBasis: "20%",
