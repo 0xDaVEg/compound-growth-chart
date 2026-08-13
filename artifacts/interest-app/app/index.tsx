@@ -1013,6 +1013,9 @@ export default function CalculatorScreen() {
             <View>
               {/* Column headers */}
               <View style={styles.tableHeaderRow}>
+                <View style={styles.tableAgeCol}>
+                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]}>Age</Text>
+                </View>
                 <View style={styles.tableLabelCol} />
                 {entryData.map((e) => (
                   <View key={e.id} style={styles.tableDataCol}>
@@ -1042,6 +1045,7 @@ export default function CalculatorScreen() {
 
               {/* Now row */}
               <View style={styles.tableRow}>
+                <Text style={styles.tableAgeText}>{ageAtMonthOffset(0)}</Text>
                 <Text style={styles.tableLabelText}>Now</Text>
                 {parsedEntries.map((e) => (
                   <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
@@ -1064,6 +1068,7 @@ export default function CalculatorScreen() {
                     idx === yearlyTotals.length - 1 && { borderBottomWidth: 0 },
                   ]}
                 >
+                  <Text style={styles.tableAgeText}>{ageAtMonthOffset(row.year * 12)}</Text>
                   <Text style={styles.tableLabelText}>{row.year}yr</Text>
                   {row.byEntry.map((bal, i) => (
                     <Text
@@ -1371,6 +1376,13 @@ function makeStyles(
       paddingBottom: 10,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+    },
+    tableAgeCol: { width: 36 },
+    tableAgeText: {
+      width: 36,
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.foreground,
     },
     tableLabelCol: { width: 48 },
     tableDataCol: {
