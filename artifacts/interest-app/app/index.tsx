@@ -777,7 +777,7 @@ export default function CalculatorScreen() {
           <View style={styles.heroDrawdownRow}>
             <View style={styles.heroDrawdownDivider} />
             <View style={styles.heroDrawdownContent}>
-              <Text style={styles.heroStatLabel}>Annual Drawdown (3.5%)</Text>
+              <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
               <Text style={[styles.heroStatValue, styles.drawdownText]}>
                 {formatCurrency((touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal) * 0.035)}
                 <Text style={styles.heroDrawdownSub}>
@@ -788,7 +788,7 @@ export default function CalculatorScreen() {
             {drawdownActive && (
               <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
                 <Text style={styles.heroStatLabel}>
-                  Retirement Income (from age {ageAtMonthOffset(drawdownStart!)})
+                  Desired Retirement Income (from age {ageAtMonthOffset(drawdownStart!)})
                 </Text>
                 <Text style={[styles.heroStatValue, styles.drawdownText]}>
                   {formatCurrency(parsedDrawdown)}
@@ -873,7 +873,7 @@ export default function CalculatorScreen() {
           {/* Retirement Income */}
           <View style={styles.chartDivider} />
           <View style={styles.timeLabelRow}>
-            <Text style={styles.fieldLabel}>RETIREMENT INCOME</Text>
+            <Text style={styles.fieldLabel}>DESIRED RETIREMENT INCOME</Text>
             {drawdownActive && (
               <Text style={styles.drawdownHintActive}>
                 from age {ageAtMonthOffset(drawdownStart!)} · {yearAtMonthOffset(drawdownStart!)}
