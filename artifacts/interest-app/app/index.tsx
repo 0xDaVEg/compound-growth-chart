@@ -35,6 +35,10 @@ const ENTRY_COLORS = [
   "#10b981",
 ];
 const TOTAL_COLOR = "#1a2d5a";
+// Snapshot table semantics: interest adds value (deep green), drawdown
+// removes value but is received as income (warm orange-red)
+const INTEREST_COLOR = "#15803d";
+const DRAWDOWN_COLOR = "#e8590c";
 
 const BIRTH_DATE = new Date(1979, 11, 10); // December 10, 1979
 
@@ -1038,12 +1042,12 @@ export default function CalculatorScreen() {
                   </Text>
                 </View>
                 <View style={styles.tableDataCol}>
-                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]} numberOfLines={1}>
+                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold, { color: INTEREST_COLOR }]} numberOfLines={1}>
                     Interest
                   </Text>
                 </View>
                 <View style={styles.tableDataCol}>
-                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]} numberOfLines={1}>
+                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold, { color: DRAWDOWN_COLOR }]} numberOfLines={1}>
                     Drawdown
                   </Text>
                 </View>
@@ -1065,8 +1069,8 @@ export default function CalculatorScreen() {
                 <Text style={[styles.tableCell, styles.tableCellTotal]}>
                   {formatCompact(totalInvested)}
                 </Text>
-                <Text style={[styles.tableCell, { color: "#12a195" }]}>—</Text>
-                <Text style={[styles.tableCell, { color: "#f59e0b" }]}>—</Text>
+                <Text style={[styles.tableCell, { color: INTEREST_COLOR }]}>—</Text>
+                <Text style={[styles.tableCell, { color: DRAWDOWN_COLOR }]}>—</Text>
                 <View style={styles.tableGroupGap} />
                 {parsedEntries.map((e) => (
                   <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
@@ -1089,10 +1093,10 @@ export default function CalculatorScreen() {
                   <Text style={[styles.tableCell, styles.tableCellTotal]}>
                     {formatCompact(row.total)}
                   </Text>
-                  <Text style={[styles.tableCell, { color: "#12a195" }]}>
+                  <Text style={[styles.tableCell, { color: INTEREST_COLOR }]}>
                     {formatCompact(row.interest)}
                   </Text>
-                  <Text style={[styles.tableCell, { color: "#f59e0b" }]}>
+                  <Text style={[styles.tableCell, { color: DRAWDOWN_COLOR }]}>
                     {row.drawdown > 0 ? formatCompact(row.drawdown) : "—"}
                   </Text>
                   <View style={styles.tableGroupGap} />
