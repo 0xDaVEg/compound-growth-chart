@@ -674,8 +674,19 @@ export default function CalculatorScreen() {
     (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYears,
     0
   );
-  // Withdrawn amounts still came from growth, so count them as interest earned
-  const totalInterest = totalFinal + simResult.totalWithdrawn - totalInvested;
+  // "Retirement pot" figures: the balance/interest at the moment retirement
+  // starts, not at the end of the selected time period. Falls back to the
+  // end-of-period total when no retirement age is set (or it falls beyond
+  // the selected period).
+  const retirementMonth = drawdownStart !== null && drawdownStart <= months ? drawdownStart : null;
+  const balanceAtRetirement = retirementMonth !== null ? (totalData[retirementMonth]?.balance ?? 0) : totalFinal;
+  // No withdrawals have happened yet at the retirement month itself, so no
+  // need to add back totalWithdrawn there; the fallback case still needs it
+  // since money may have been withdrawn by the end of the period.
+  const totalInterest =
+    retirementMonth !== null
+      ? balanceAtRetirement - totalInvested
+      : totalFinal + simResult.totalWithdrawn - totalInvested;
 
   const visibleEntryData = useMemo(
     () => entryData.filter((e) => !hiddenIds.has(e.id)),
@@ -786,8 +797,8 @@ export default function CalculatorScreen() {
           colors={["#1a2d5a", "#0f1e40"]}
           style={[styles.hero, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}
         >
-          <Text style={styles.heroLabel}>TOTAL PROJECTED BALANCE</Text>
-          <Text style={styles.heroBalance}>{formatCurrency(totalFinal)}</Text>
+          <Text style={styles.heroLabel}>TOTAL PROJECTED RETIREMENT POT</Text>
+          <Text style={styles.heroBalance}>{formatCurrency(balanceAtRetirement)}</Text>
           <View style={styles.heroStats}>
             <View>
               <Text style={styles.heroStatLabel}>Total Invested</Text>
