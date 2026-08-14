@@ -1416,7 +1416,7 @@ function makeStyles(
       fontFamily: "Inter_600SemiBold",
       color: colors.foreground,
     },
-    tableLabelCol: { width: 48 },
+    tableLabelCol: { width: 38 },
     tableDataCol: {
       width: 84,
       flexDirection: "row",
@@ -1440,7 +1440,7 @@ function makeStyles(
       borderBottomColor: colors.border,
     },
     tableLabelText: {
-      width: 48,
+      width: 38,
       fontSize: 13,
       fontFamily: "Inter_500Medium",
       color: colors.mutedForeground,
