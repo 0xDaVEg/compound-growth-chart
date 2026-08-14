@@ -63,6 +63,16 @@ function yearAtMonthOffset(monthOffset: number): number {
   return new Date(now.getFullYear(), now.getMonth() + monthOffset, 15).getFullYear();
 }
 
+/**
+ * Snap a month offset back to the start of the 12-month "table year"
+ * containing it, so drawdown years align with snapshot rows: the full
+ * entered amount is withdrawn during the year the user reaches
+ * retirement age, rising by inflation each row thereafter.
+ */
+function snapToYearStart(offset: number): number {
+  return offset === 0 ? 0 : Math.floor((offset - 1) / 12) * 12;
+}
+
 /** Months from now until the birthday when the user turns targetAge (0 if already reached). */
 function monthOffsetAtAge(targetAge: number): number {
   const now = new Date();
@@ -619,7 +629,7 @@ export default function CalculatorScreen() {
   const parsedRetirementAge = parseInt(retirementAge, 10);
   const drawdownStart =
     !isNaN(parsedRetirementAge) && parsedRetirementAge > 0
-      ? monthOffsetAtAge(parsedRetirementAge)
+      ? snapToYearStart(monthOffsetAtAge(parsedRetirementAge))
       : null;
   const drawdownActive = parsedDrawdown > 0 && drawdownStart !== null && drawdownStart < months;
 
@@ -806,7 +816,7 @@ export default function CalculatorScreen() {
             {drawdownActive && (
               <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
                 <Text style={styles.heroStatLabel}>
-                  Desired Retirement Income (from age {ageAtMonthOffset(drawdownStart!)})
+                  Desired Retirement Income (from age {parsedRetirementAge})
                 </Text>
                 <Text style={[styles.heroStatValue, styles.drawdownText]}>
                   {formatCurrency(parsedDrawdown)}
@@ -894,7 +904,7 @@ export default function CalculatorScreen() {
             <Text style={styles.fieldLabel}>DESIRED RETIREMENT INCOME</Text>
             {drawdownActive && (
               <Text style={styles.drawdownHintActive}>
-                from age {ageAtMonthOffset(drawdownStart!)} · {yearAtMonthOffset(drawdownStart!)}
+                from age {parsedRetirementAge} · {yearAtMonthOffset(drawdownStart! + 1)}
               </Text>
             )}
           </View>
