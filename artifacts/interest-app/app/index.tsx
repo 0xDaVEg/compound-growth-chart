@@ -688,6 +688,25 @@ export default function CalculatorScreen() {
       ? balanceAtRetirement - totalInvested
       : totalFinal + simResult.totalWithdrawn - totalInvested;
 
+  // Cumulative amount withdrawn by each month, for interest-at-any-point lookups
+  const withdrawnPrefix = useMemo(() => {
+    const arr = [0];
+    for (let m = 1; m <= months; m++) arr.push(arr[m - 1] + (simResult.withdrawnByMonth[m] ?? 0));
+    return arr;
+  }, [simResult, months]);
+
+  const investedUpToMonth = (m: number) => {
+    const contribYearsAt =
+      drawdownStart === null
+        ? Math.floor(m / 12)
+        : Math.min(Math.floor(m / 12), Math.max(0, Math.floor((drawdownStart - 1) / 12)));
+    return parsedEntries.reduce((s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYearsAt, 0);
+  };
+
+  // Cumulative interest earned by month m, wherever the chart is tapped
+  const interestAtMonth = (m: number) =>
+    (totalData[m]?.balance ?? 0) + (withdrawnPrefix[m] ?? 0) - investedUpToMonth(m);
+
   const visibleEntryData = useMemo(
     () => entryData.filter((e) => !hiddenIds.has(e.id)),
     [entryData, hiddenIds]
@@ -808,7 +827,7 @@ export default function CalculatorScreen() {
             <View>
               <Text style={styles.heroStatLabel}>Total Interest</Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
-                +{formatCurrency(totalInterest)}
+                +{formatCurrency(touchMonth !== null ? interestAtMonth(touchMonth) : totalInterest)}
               </Text>
             </View>
           </View>
@@ -818,7 +837,7 @@ export default function CalculatorScreen() {
             <View style={styles.heroDrawdownContent}>
               <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
               <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                {formatCurrency((touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal) * 0.035)}
+                {formatCurrency((touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
                 <Text style={styles.heroDrawdownSub}>
                   {" "}/ yr{touchMonth !== null ? ` · ${yearAtMonthOffset(touchMonth)}` : ""}
                 </Text>
