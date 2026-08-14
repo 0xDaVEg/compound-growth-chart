@@ -820,7 +820,7 @@ export default function CalculatorScreen() {
                 </Text>
                 <Text style={[styles.heroStatValue, styles.drawdownText]}>
                   {formatCurrency(parsedDrawdown)}
-                  <Text style={styles.heroDrawdownSub}> / yr · {formatCurrency(simResult.totalWithdrawn)} drawn</Text>
+                  <Text style={styles.heroDrawdownSub}> / yr</Text>
                 </Text>
               </View>
             )}
@@ -1416,7 +1416,7 @@ function makeStyles(
       fontFamily: "Inter_600SemiBold",
       color: colors.foreground,
     },
-    tableLabelCol: { width: 38 },
+    tableLabelCol: { width: 32 },
     tableDataCol: {
       width: 84,
       flexDirection: "row",
@@ -1440,7 +1440,7 @@ function makeStyles(
       borderBottomColor: colors.border,
     },
     tableLabelText: {
-      width: 38,
+      width: 32,
       fontSize: 13,
       fontFamily: "Inter_500Medium",
       color: colors.mutedForeground,
