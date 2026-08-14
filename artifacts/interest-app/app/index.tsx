@@ -1031,14 +1031,6 @@ export default function CalculatorScreen() {
                   <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]}>Age</Text>
                 </View>
                 <View style={styles.tableLabelCol} />
-                {entryData.map((e) => (
-                  <View key={e.id} style={styles.tableDataCol}>
-                    <View style={[styles.tableHeaderDot, { backgroundColor: e.color }]} />
-                    <Text style={styles.tableHeaderText} numberOfLines={1}>
-                      {e.label || "Entry"}
-                    </Text>
-                  </View>
-                ))}
                 <View style={styles.tableDataCol}>
                   <View style={[styles.tableHeaderDot, { backgroundColor: TOTAL_COLOR }]} />
                   <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold]}>
@@ -1055,22 +1047,30 @@ export default function CalculatorScreen() {
                     Drawdown
                   </Text>
                 </View>
+                {entryData.map((e) => (
+                  <View key={e.id} style={styles.tableDataCol}>
+                    <View style={[styles.tableHeaderDot, { backgroundColor: e.color }]} />
+                    <Text style={styles.tableHeaderText} numberOfLines={1}>
+                      {e.label || "Entry"}
+                    </Text>
+                  </View>
+                ))}
               </View>
 
               {/* Now row */}
               <View style={styles.tableRow}>
                 <Text style={styles.tableAgeText}>{ageAtMonthOffset(0)}</Text>
                 <Text style={styles.tableLabelText}>Now</Text>
-                {parsedEntries.map((e) => (
-                  <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
-                    {formatCompact(e.parsedPrincipal)}
-                  </Text>
-                ))}
                 <Text style={[styles.tableCell, styles.tableCellTotal]}>
                   {formatCompact(totalInvested)}
                 </Text>
                 <Text style={[styles.tableCell, { color: "#12a195" }]}>—</Text>
                 <Text style={[styles.tableCell, { color: "#f59e0b" }]}>—</Text>
+                {parsedEntries.map((e) => (
+                  <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
+                    {formatCompact(e.parsedPrincipal)}
+                  </Text>
+                ))}
               </View>
 
               {/* Year rows */}
@@ -1084,14 +1084,6 @@ export default function CalculatorScreen() {
                 >
                   <Text style={styles.tableAgeText}>{ageAtMonthOffset(row.year * 12)}</Text>
                   <Text style={styles.tableLabelText}>{row.year}yr</Text>
-                  {row.byEntry.map((bal, i) => (
-                    <Text
-                      key={i}
-                      style={[styles.tableCell, { color: ENTRY_COLORS[i % ENTRY_COLORS.length] }]}
-                    >
-                      {formatCompact(bal)}
-                    </Text>
-                  ))}
                   <Text style={[styles.tableCell, styles.tableCellTotal]}>
                     {formatCompact(row.total)}
                   </Text>
@@ -1101,6 +1093,14 @@ export default function CalculatorScreen() {
                   <Text style={[styles.tableCell, { color: "#f59e0b" }]}>
                     {row.drawdown > 0 ? formatCompact(row.drawdown) : "—"}
                   </Text>
+                  {row.byEntry.map((bal, i) => (
+                    <Text
+                      key={i}
+                      style={[styles.tableCell, { color: ENTRY_COLORS[i % ENTRY_COLORS.length] }]}
+                    >
+                      {formatCompact(bal)}
+                    </Text>
+                  ))}
                 </View>
               ))}
             </View>
