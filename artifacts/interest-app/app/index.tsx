@@ -1047,6 +1047,7 @@ export default function CalculatorScreen() {
                     Drawdown
                   </Text>
                 </View>
+                <View style={styles.tableGroupGap} />
                 {entryData.map((e) => (
                   <View key={e.id} style={styles.tableDataCol}>
                     <View style={[styles.tableHeaderDot, { backgroundColor: e.color }]} />
@@ -1066,6 +1067,7 @@ export default function CalculatorScreen() {
                 </Text>
                 <Text style={[styles.tableCell, { color: "#12a195" }]}>—</Text>
                 <Text style={[styles.tableCell, { color: "#f59e0b" }]}>—</Text>
+                <View style={styles.tableGroupGap} />
                 {parsedEntries.map((e) => (
                   <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
                     {formatCompact(e.parsedPrincipal)}
@@ -1093,6 +1095,7 @@ export default function CalculatorScreen() {
                   <Text style={[styles.tableCell, { color: "#f59e0b" }]}>
                     {row.drawdown > 0 ? formatCompact(row.drawdown) : "—"}
                   </Text>
+                  <View style={styles.tableGroupGap} />
                   {row.byEntry.map((bal, i) => (
                     <Text
                       key={i}
@@ -1392,6 +1395,7 @@ function makeStyles(
       borderBottomColor: colors.border,
     },
     tableAgeCol: { width: 36 },
+    tableGroupGap: { width: 20 },
     tableAgeText: {
       width: 36,
       fontSize: 13,
