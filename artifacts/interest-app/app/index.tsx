@@ -674,38 +674,12 @@ export default function CalculatorScreen() {
     (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYears,
     0
   );
-  // "Retirement pot" figures: the balance/interest at the moment retirement
-  // starts, not at the end of the selected time period. Falls back to the
+  // "Retirement pot" figure: the balance at the moment retirement starts,
+  // not at the end of the selected time period. Falls back to the
   // end-of-period total when no retirement age is set (or it falls beyond
   // the selected period).
   const retirementMonth = drawdownStart !== null && drawdownStart <= months ? drawdownStart : null;
   const balanceAtRetirement = retirementMonth !== null ? (totalData[retirementMonth]?.balance ?? 0) : totalFinal;
-  // No withdrawals have happened yet at the retirement month itself, so no
-  // need to add back totalWithdrawn there; the fallback case still needs it
-  // since money may have been withdrawn by the end of the period.
-  const totalInterest =
-    retirementMonth !== null
-      ? balanceAtRetirement - totalInvested
-      : totalFinal + simResult.totalWithdrawn - totalInvested;
-
-  // Cumulative amount withdrawn by each month, for interest-at-any-point lookups
-  const withdrawnPrefix = useMemo(() => {
-    const arr = [0];
-    for (let m = 1; m <= months; m++) arr.push(arr[m - 1] + (simResult.withdrawnByMonth[m] ?? 0));
-    return arr;
-  }, [simResult, months]);
-
-  const investedUpToMonth = (m: number) => {
-    const contribYearsAt =
-      drawdownStart === null
-        ? Math.floor(m / 12)
-        : Math.min(Math.floor(m / 12), Math.max(0, Math.floor((drawdownStart - 1) / 12)));
-    return parsedEntries.reduce((s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYearsAt, 0);
-  };
-
-  // Cumulative interest earned by month m, wherever the chart is tapped
-  const interestAtMonth = (m: number) =>
-    (totalData[m]?.balance ?? 0) + (withdrawnPrefix[m] ?? 0) - investedUpToMonth(m);
 
   const visibleEntryData = useMemo(
     () => entryData.filter((e) => !hiddenIds.has(e.id)),
@@ -825,9 +799,9 @@ export default function CalculatorScreen() {
             </View>
             <View style={styles.heroDivider} />
             <View>
-              <Text style={styles.heroStatLabel}>Total Interest</Text>
+              <Text style={styles.heroStatLabel}>Grand Total</Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
-                +{formatCurrency(touchMonth !== null ? interestAtMonth(touchMonth) : totalInterest)}
+                {formatCurrency(touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal)}
               </Text>
             </View>
           </View>
