@@ -1357,7 +1357,8 @@ function makeStyles(
     textInput: {
       flex: 1,
       minWidth: 0,
-      fontSize: 15,
+      // 16px: iOS Safari auto-zooms the page when focusing inputs under 16px
+      fontSize: 16,
       fontFamily: "Inter_500Medium",
       color: colors.foreground,
       padding: 0,
