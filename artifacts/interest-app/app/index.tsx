@@ -349,7 +349,7 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
     : `Age ${ageAtMonthOffset(touchMonth)} · ${yearAtMonthOffset(touchMonth)}`;
 
   // Keep tooltip inside the chart
-  const TOOLTIP_W = 170;
+  const TOOLTIP_W = 220;
   const tooltipLeft =
     crosshairX !== null
       ? crosshairX + 10 + TOOLTIP_W > chartWidth
@@ -525,7 +525,7 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
 
 const chartTooltipStyle: object = {
   position: "absolute",
-  width: 170,
+  width: 220,
   backgroundColor: "rgba(255,255,255,0.97)",
   borderRadius: 12,
   paddingHorizontal: 12,
