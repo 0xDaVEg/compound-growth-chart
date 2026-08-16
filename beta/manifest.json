@@ -2,14 +2,14 @@
   "name": "Interest Calculator",
   "short_name": "Calc",
   "description": "Compound interest calculator with stacked area chart",
-  "start_url": "/mobile/",
+  "start_url": "/compound-growth-chart/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f1e40",
   "theme_color": "#1a2d5a",
   "icons": [
     {
-      "src": "/mobile/icon.png",
+      "src": "/compound-growth-chart/icon.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
