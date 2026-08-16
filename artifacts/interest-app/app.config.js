@@ -1,6 +1,6 @@
 // Allows overriding the web base path per build without editing app.json:
-//   BASE_PATH=/compound-growth-chart pnpm exec expo export --platform web
-// Without BASE_PATH, app.json's baseUrl (/mobile, for Replit) applies.
+//   BASE_PATH=/some-path pnpm exec expo export --platform web
+// Defaults to the GitHub Pages sub-path (https://<user>.github.io/compound-growth-chart).
 module.exports = ({ config }) => ({
   ...config,
   experiments: {
