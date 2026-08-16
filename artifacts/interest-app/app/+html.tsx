@@ -28,6 +28,15 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="theme-color" content="#1a2d5a" />
 
         <ScrollViewStyleReset />
+
+        {/* iOS Safari keeps the page zoomed after input blur — snap the
+            viewport back to 1:1 as a safety net (inputs are >=16px so the
+            focus zoom should not trigger in the first place). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){if(!/iPhone|iPad|iPod/i.test(navigator.userAgent))return;var v=document.querySelector('meta[name="viewport"]');if(!v)return;var base='width=device-width, initial-scale=1, shrink-to-fit=no';document.addEventListener('focusout',function(){if(window.visualViewport&&window.visualViewport.scale>1){v.setAttribute('content',base+', maximum-scale=1');setTimeout(function(){v.setAttribute('content',base)},120)}})})();`,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
