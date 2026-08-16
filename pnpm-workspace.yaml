@@ -153,5 +153,10 @@ overrides:
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
 
+# pnpm 11 build-script allowlist (onlyBuiltDependencies above is the
+# pre-11 equivalent, kept for older pnpm)
 allowBuilds:
-  esbuild: set this to true or false
+  '@swc/core': true
+  esbuild: true
+  msw: true
+  unrs-resolver: true
