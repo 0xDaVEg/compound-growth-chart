@@ -799,7 +799,7 @@ export default function CalculatorScreen() {
             </View>
             <View style={styles.heroDivider} />
             <View>
-              <Text style={styles.heroStatLabel}>Grand Total</Text>
+              <Text style={styles.heroStatLabel}>Total</Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
                 {formatCurrency(touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal)}
               </Text>
