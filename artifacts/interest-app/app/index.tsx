@@ -489,7 +489,7 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
 
           {/* Tooltip */}
           {touchMonth !== null && crosshairX !== null && (
-            <View style={[chartTooltipStyle, { left: tooltipLeft, top: pad.top }]}>
+            <View style={[chartTooltipStyle, { left: tooltipLeft, top: pad.top + 4 }]}>
               <Text style={chartTooltipTimeStyle}>{touchTimeLabel}</Text>
               {touchValues.map((v, i) => (
                 <View key={i} style={chartTooltipRowStyle}>
@@ -516,7 +516,8 @@ const chartTooltipStyle: object = {
   backgroundColor: "rgba(255,255,255,0.97)",
   borderRadius: 12,
   paddingHorizontal: 12,
-  paddingVertical: 10,
+  paddingTop: 10,
+  paddingBottom: 5,
   shadowColor: "#000",
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.12,
