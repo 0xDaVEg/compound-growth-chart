@@ -348,13 +348,17 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
     : touchMonth === 0 ? `Age ${ageAtMonthOffset(0)} · Now`
     : `Age ${ageAtMonthOffset(touchMonth)} · ${yearAtMonthOffset(touchMonth)}`;
 
-  // Keep tooltip inside the chart
+  // Keep tooltip inside the chart — prefer the side with more room, then clamp
   const TOOLTIP_W = 220;
   const tooltipLeft =
     crosshairX !== null
-      ? crosshairX + 10 + TOOLTIP_W > chartWidth
-        ? crosshairX - TOOLTIP_W - 10
-        : crosshairX + 10
+      ? Math.max(
+          0,
+          Math.min(
+            crosshairX >= chartWidth / 2 ? crosshairX - TOOLTIP_W - 10 : crosshairX + 10,
+            chartWidth - TOOLTIP_W,
+          ),
+        )
       : 0;
 
   return (
