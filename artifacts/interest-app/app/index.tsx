@@ -502,23 +502,6 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
                   </Text>
                 </View>
               ))}
-              {(() => {
-                const totalEntry = touchValues.find((v) => v.isTotal);
-                const drawdown = (totalEntry?.balance ?? 0) * 0.035;
-                if (drawdown <= 0) return null;
-                return (
-                  <>
-                    <View style={chartTooltipDividerStyle} />
-                    <View style={chartTooltipRowStyle}>
-                      <View style={[chartTooltipDotStyle, { backgroundColor: "#f59e0b" }]} />
-                      <Text style={chartTooltipLabelStyle} numberOfLines={1}>Drawdown</Text>
-                      <Text style={[chartTooltipValueStyle, { color: "#f59e0b" }]}>
-                        {formatCurrency(drawdown)}<Text style={{ fontSize: 9, opacity: 0.7 }}> /yr</Text>
-                      </Text>
-                    </View>
-                  </>
-                );
-              })()}
             </View>
           )}
         </>
@@ -555,11 +538,6 @@ const chartTooltipRowStyle: object = {
   alignItems: "center",
   marginBottom: 4,
   gap: 5,
-};
-const chartTooltipDividerStyle: object = {
-  height: 1,
-  backgroundColor: "rgba(0,0,0,0.07)",
-  marginVertical: 4,
 };
 const chartTooltipDotStyle: object = {
   width: 8, height: 8, borderRadius: 4, flexShrink: 0,
