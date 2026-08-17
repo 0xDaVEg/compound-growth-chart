@@ -317,11 +317,12 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
 
   const xLabels = useMemo(() => {
     const labelStep = months <= 24 ? 6 : months <= 60 ? 12 : months <= 120 ? 24 : months <= 360 ? 60 : 120;
-    const labels: { x: number; text: string }[] = [];
+    const labels: { x: number; yearText: string; ageText: string }[] = [];
     for (let m = 0; m <= months; m += labelStep) {
       labels.push({
         x: sx(m),
-        text: m === 0 ? "Now" : m % 12 === 0 ? `${m / 12}y` : `${m}m`,
+        yearText: m === 0 ? "Now" : m % 12 === 0 ? `${m / 12}y` : `${m}m`,
+        ageText: String(ageAtMonthOffset(m)),
       });
     }
     return labels;
@@ -469,21 +470,23 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
             })}
             {/* X-axis labels */}
             {xLabels.map((label, i) => (
-              <Text
+              <View
                 key={i}
-                selectable={false}
                 style={{
                   position: "absolute",
-                  top: height - pad.bottom + 4,
+                  top: height - pad.bottom + 3,
                   left: label.x - 18,
                   width: 36,
-                  textAlign: "center",
-                  fontSize: 10,
-                  color: mutedColor,
+                  alignItems: "center",
                 }}
               >
-                {label.text}
-              </Text>
+                <Text selectable={false} style={{ fontSize: 10, color: mutedColor }}>
+                  {label.yearText}
+                </Text>
+                <Text selectable={false} style={{ fontSize: 9, color: mutedColor, opacity: 0.6 }}>
+                  {label.ageText}
+                </Text>
+              </View>
             ))}
           </View>
 
