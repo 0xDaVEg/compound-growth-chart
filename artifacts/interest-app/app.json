@@ -20,7 +20,7 @@
     "web": {
       "favicon": "./assets/images/icon.png",
       "themeColor": "#1a2d5a",
-      "backgroundColor": "#0f1e40"
+      "backgroundColor": "#f5f7fb"
     },
     "plugins": [
       "expo-router",
