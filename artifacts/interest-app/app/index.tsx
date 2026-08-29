@@ -1202,7 +1202,7 @@ export default function CalculatorScreen() {
           )}
           {simResult.totalCgtPaid > 0 && (
             <View style={styles.cgtRow}>
-              <Text style={styles.pensionLabel}>
+              <Text style={[styles.pensionLabel, { color: CGT_COLOR }]}>
                 Capital gains tax · {Math.round(CGT_RATE * 100)}% on gains above{" "}
                 {formatCurrency(CGT_ALLOWANCE)}/yr
               </Text>
