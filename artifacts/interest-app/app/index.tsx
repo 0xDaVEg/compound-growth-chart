@@ -50,6 +50,63 @@ const INFLATION_RATE = 0.03;
 const STATE_PENSION_AGE = 67;
 const STATE_PENSION_ANNUAL = 12547.6;
 
+/**
+ * Self-heal on GitHub Pages: the CDN caches index.html for 10 minutes, so a
+ * freshly opened bookmark can run an older bundle. Fetch a cache-busted copy
+ * of the shell and, if it references a newer entry bundle than the one
+ * executing, hop to a ?v= URL (a fresh cache key) to pull the current shell
+ * and upgrade immediately. Web only.
+ */
+if (typeof document !== "undefined") {
+  const runUpdateCheck = () => {
+    const entry = document.querySelector('script[src*="_expo/static/js/web/entry-"]');
+    if (!entry) return;
+    const loadedName = (entry.getAttribute("src") ?? "").split("/").pop() ?? "";
+    const m = window.location.search.match(/[?&]v=([^&]+)/);
+    if (m) {
+      const clean =
+        window.location.pathname +
+        window.location.search.replace(/([?&])v=[^&]*/, "$1").replace(/([?&])&+/, "$1") +
+        window.location.hash;
+      window.history.replaceState(null, "", clean.replace(/\?$/, ""));
+    }
+    let hops = 0;
+    try {
+      hops = parseInt(sessionStorage.getItem("app_hops") || "0", 10) || 0;
+    } catch {}
+    const check = () => {
+      fetch(window.location.pathname + "?bust=" + Date.now(), { cache: "no-store" })
+        .then((r) => r.text())
+        .then((html) => {
+          const m2 = html.match(/_expo\/static\/js\/web\/(entry-[A-Za-z0-9]+\.js)/);
+          if (!m2) return;
+          if (m2[1] === loadedName) {
+            try {
+              sessionStorage.removeItem("app_hops");
+            } catch {}
+            return;
+          }
+          if (hops >= 2) return;
+          const sep = window.location.search ? "&" : "?";
+          const url = window.location.pathname + window.location.search + sep + "v=" + m2[1] + window.location.hash;
+          try {
+            sessionStorage.setItem("app_hops", String(hops + 1));
+          } catch {}
+          window.location.replace(url);
+        })
+        .catch(() => {});
+    };
+    check();
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) check();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) check();
+    });
+  };
+  runUpdateCheck();
+}
+
 function ageAtMonthOffset(monthOffset: number): number {
   const now = new Date();
   const future = new Date(now.getFullYear(), now.getMonth() + monthOffset, 15);
