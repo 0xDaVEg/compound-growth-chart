@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -148,22 +149,24 @@ interface SimGap {
  * Yearly contributions stop once retirement (drawdownStartMonth) is
  * reached, whether or not an income amount is set.
  *
- * The UK state pension is treated as an implicit income source: from
- * STATE_PENSION_AGE it pays STATE_PENSION_ANNUAL per year in monthly
- * instalments, rising with INFLATION_RATE each year. It offsets the
- * desired drawdown, so only the shortfall is taken from the pots.
+ * The UK state pension is treated as an implicit income source when
+ * statePensionEnabled: from STATE_PENSION_AGE it pays STATE_PENSION_ANNUAL
+ * per year in monthly instalments, rising with INFLATION_RATE each year.
+ * It offsets the desired drawdown, so only the shortfall is taken from
+ * the pots.
  */
 function simulateEntries(
   simEntries: SimEntry[],
   months: number,
   drawdownAnnual: number,
-  drawdownStartMonth: number | null
+  drawdownStartMonth: number | null,
+  statePensionEnabled: boolean
 ): { perEntry: MonthData[][]; totalWithdrawn: number; withdrawnByMonth: number[]; gaps: SimGap[] } {
   const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
   const drawing = drawdownAnnual > 0 && drawdownStartMonth !== null;
-  const statePensionStart = snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE));
+  const statePensionStart = statePensionEnabled ? snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE)) : Infinity;
   let totalWithdrawn = 0;
   const withdrawnByMonth: number[] = [0];
   const gaps: SimGap[] = [];
@@ -661,11 +664,12 @@ export default function CalculatorScreen() {
   const [touchMonth, setTouchMonth] = useState<number | null>(null);
   const [drawdownAmount, setDrawdownAmount] = useState("");
   const [retirementAge, setRetirementAge] = useState("");
+  const [statePensionEnabled, setStatePensionEnabled] = useState(true);
   const loaded = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet(["calc_entries", "calc_months", "calc_drawdown", "calc_retirement_age"]).then(
-      ([[, rawEntries], [, rawMonths], [, rawDrawdown], [, rawRetirementAge]]) => {
+    AsyncStorage.multiGet(["calc_entries", "calc_months", "calc_drawdown", "calc_retirement_age", "calc_state_pension"]).then(
+      ([[, rawEntries], [, rawMonths], [, rawDrawdown], [, rawRetirementAge], [, rawStatePension]]) => {
         if (rawEntries) {
           try {
             const parsed = JSON.parse(rawEntries) as Entry[];
@@ -678,6 +682,7 @@ export default function CalculatorScreen() {
         }
         if (rawDrawdown) setDrawdownAmount(rawDrawdown);
         if (rawRetirementAge) setRetirementAge(rawRetirementAge);
+        if (rawStatePension != null) setStatePensionEnabled(rawStatePension === "1");
         loaded.current = true;
       }
     );
@@ -690,8 +695,9 @@ export default function CalculatorScreen() {
       ["calc_months", String(months)],
       ["calc_drawdown", drawdownAmount],
       ["calc_retirement_age", retirementAge],
+      ["calc_state_pension", statePensionEnabled ? "1" : "0"],
     ]);
-  }, [entries, months, drawdownAmount, retirementAge]);
+  }, [entries, months, drawdownAmount, retirementAge, statePensionEnabled]);
 
   const parsedEntries = useMemo(
     () =>
@@ -729,9 +735,10 @@ export default function CalculatorScreen() {
         })),
         months,
         parsedDrawdown,
-        drawdownStart
+        drawdownStart,
+        statePensionEnabled
       ),
-    [parsedEntries, months, parsedDrawdown, drawdownStart]
+    [parsedEntries, months, parsedDrawdown, drawdownStart, statePensionEnabled]
   );
 
   const entryData = useMemo(
@@ -926,7 +933,7 @@ export default function CalculatorScreen() {
             touchMonth={touchMonth}
             onTouchMonthChange={setTouchMonth}
             drawdownStartMonth={drawdownActive ? drawdownStart : null}
-            pensionStartMonth={drawdownActive ? snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE)) : null}
+            pensionStartMonth={drawdownActive && statePensionEnabled ? snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE)) : null}
           />
 
           {/* Legend */}
@@ -1034,9 +1041,18 @@ export default function CalculatorScreen() {
               : "Retirement falls beyond the selected time period"}
           </Text>
           {drawdownActive && (
-            <Text style={styles.pensionLine}>
-              State pension · {formatCurrency(STATE_PENSION_ANNUAL)}/yr from age {STATE_PENSION_AGE}, rises with inflation
-            </Text>
+            <View style={styles.pensionRow}>
+              <Text style={styles.pensionLabel}>
+                UK state pension · {formatCurrency(STATE_PENSION_ANNUAL)}/yr from age{" "}
+                {STATE_PENSION_AGE}, rises with inflation
+              </Text>
+              <Switch
+                value={statePensionEnabled}
+                onValueChange={setStatePensionEnabled}
+                trackColor={{ true: "#14b8a6", false: Platform.OS === "ios" ? "#e4eaf2" : "#a8a29e" }}
+                thumbColor="#ffffff"
+              />
+            </View>
           )}
           {simResult.gaps.length > 0 && (
             <View style={styles.gapBanner}>
@@ -1414,8 +1430,15 @@ function makeStyles(
       fontFamily: "Inter_400Regular",
       color: "#9a3412",
     },
-    pensionLine: {
-      marginTop: 6,
+    pensionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginTop: 8,
+    },
+    pensionLabel: {
+      flex: 1,
       fontSize: 12,
       fontFamily: "Inter_500Medium",
       color: "#14b8a6",
