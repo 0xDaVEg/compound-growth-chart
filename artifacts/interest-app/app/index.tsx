@@ -1090,13 +1090,13 @@ export default function CalculatorScreen() {
               </View>
               <View style={styles.entryContribRow}>
                 <Text style={styles.entryContribLabel}>Available from age</Text>
-                <View style={[styles.inputWrap, { width: 110 }]}>
+                <View style={[styles.inputWrap, { width: 140 }]}>
                   <TextInput
                     style={[styles.textInput, { flex: 1 }]}
                     value={entry.availableAge ?? ""}
                     onChangeText={(v) => updateEntry(entry.id, "availableAge", v)}
                     keyboardType="numeric"
-                    placeholder=""
+                    placeholder="Optional"
                     placeholderTextColor={colors.mutedForeground}
                   />
                   <Text style={styles.inputAffix}>age</Text>
