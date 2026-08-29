@@ -311,9 +311,10 @@ interface MultiChartProps {
   touchMonth: number | null;
   onTouchMonthChange: (month: number | null) => void;
   drawdownStartMonth?: number | null;
+  pensionStartMonth?: number | null;
 }
 
-function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange, drawdownStartMonth = null }: MultiChartProps) {
+function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthChange, drawdownStartMonth = null, pensionStartMonth = null }: MultiChartProps) {
   const [chartWidth, setChartWidth] = useState(SCREEN_WIDTH - 72);
   const height = 200;
   const pad = { top: 16, right: 12, bottom: 30, left: 48 };
@@ -500,6 +501,16 @@ function MultiLineChart({ lines, months, mutedColor, touchMonth, onTouchMonthCha
                 x1={sx(drawdownStartMonth)} y1={pad.top}
                 x2={sx(drawdownStartMonth)} y2={height - pad.bottom}
                 stroke="#f59e0b" strokeWidth="1.5" opacity="0.85"
+              />
+            )}
+
+            {/* State pension start marker (teal dashed; hidden if it coincides with retirement) */}
+            {pensionStartMonth !== null && pensionStartMonth !== drawdownStartMonth && pensionStartMonth <= months && (
+              <SvgLine
+                x1={sx(pensionStartMonth)} y1={pad.top}
+                x2={sx(pensionStartMonth)} y2={height - pad.bottom}
+                stroke="#14b8a6" strokeWidth="1.5" opacity="0.85"
+                strokeDasharray="4 4"
               />
             )}
 
@@ -915,6 +926,7 @@ export default function CalculatorScreen() {
             touchMonth={touchMonth}
             onTouchMonthChange={setTouchMonth}
             drawdownStartMonth={drawdownActive ? drawdownStart : null}
+            pensionStartMonth={drawdownActive ? snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE)) : null}
           />
 
           {/* Legend */}
@@ -1014,13 +1026,18 @@ export default function CalculatorScreen() {
           </View>
           <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
             {drawdownActive
-              ? `Withdrawn monthly · rises 3% each year with inflation · state pension (${STATE_PENSION_AGE}) offsets £${formatCompact(STATE_PENSION_ANNUAL)}/yr from age ${STATE_PENSION_AGE}`
+              ? "Withdrawn monthly · rises 3% each year with inflation"
               : parsedDrawdown <= 0
               ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
               : drawdownStart === null
               ? "Enter your retirement age"
               : "Retirement falls beyond the selected time period"}
           </Text>
+          {drawdownActive && (
+            <Text style={styles.pensionLine}>
+              State pension · {formatCurrency(STATE_PENSION_ANNUAL)}/yr from age {STATE_PENSION_AGE}, rises with inflation
+            </Text>
+          )}
           {simResult.gaps.length > 0 && (
             <View style={styles.gapBanner}>
               <Text style={styles.gapBannerTitle}>Drawdown paused — available pots ran out</Text>
@@ -1396,6 +1413,12 @@ function makeStyles(
       fontSize: 12,
       fontFamily: "Inter_400Regular",
       color: "#9a3412",
+    },
+    pensionLine: {
+      marginTop: 6,
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+      color: "#14b8a6",
     },
     presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     presetBtn: {
