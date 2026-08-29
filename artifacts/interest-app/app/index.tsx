@@ -717,7 +717,7 @@ export default function CalculatorScreen() {
 
   const [entries, setEntries] = useState<Entry[]>(DEFAULT_ENTRIES);
   const [months, setMonths] = useState(120);
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   const [touchMonth, setTouchMonth] = useState<number | null>(null);
   const [drawdownAmount, setDrawdownAmount] = useState("");
   const [retirementAge, setRetirementAge] = useState("");
@@ -780,10 +780,15 @@ export default function CalculatorScreen() {
       : null;
   const drawdownActive = parsedDrawdown > 0 && drawdownStart !== null && drawdownStart < months;
 
+  const activeEntries = useMemo(
+    () => parsedEntries.filter((e) => !excludedIds.has(e.id)),
+    [parsedEntries, excludedIds]
+  );
+
   const simResult = useMemo(
     () =>
       simulateEntries(
-        parsedEntries.map((e) => ({
+        activeEntries.map((e) => ({
           principal: e.parsedPrincipal,
           annualRate: e.parsedRate,
           yearlyContribution: e.parsedYearlyContribution,
@@ -795,17 +800,26 @@ export default function CalculatorScreen() {
         drawdownStart,
         statePensionEnabled
       ),
-    [parsedEntries, months, parsedDrawdown, drawdownStart, statePensionEnabled]
+    [activeEntries, months, parsedDrawdown, drawdownStart, statePensionEnabled]
   );
 
+  // Projection rows: only entries currently included in the calculation.
   const entryData = useMemo(
     () =>
-      parsedEntries.map((e, i) => ({
+      activeEntries.map((e, i) => ({
         ...e,
         data: simResult.perEntry[i],
       })),
-    [parsedEntries, simResult]
+    [activeEntries, simResult]
   );
+
+  // All entries (still render as cards / legend chips) with their sim data
+  // attached where the entry is included; excluded entries carry null.
+  const entryDataAll = useMemo(() => {
+    const byId = new Map<string, MonthData[]>();
+    simResult.perEntry.forEach((d, i) => byId.set(activeEntries[i].id, d));
+    return parsedEntries.map((e) => ({ ...e, data: byId.get(e.id) ?? null }));
+  }, [parsedEntries, activeEntries, simResult]);
 
   const totalData: MonthData[] = useMemo(() => {
     return Array.from({ length: months + 1 }, (_, m) => ({
@@ -820,7 +834,7 @@ export default function CalculatorScreen() {
     drawdownStart === null
       ? Math.floor(months / 12)
       : Math.min(Math.floor(months / 12), Math.max(0, Math.floor((drawdownStart - 1) / 12)));
-  const totalInvested = parsedEntries.reduce(
+  const totalInvested = activeEntries.reduce(
     (s, e) => s + e.parsedPrincipal + e.parsedYearlyContribution * contribYears,
     0
   );
@@ -831,21 +845,9 @@ export default function CalculatorScreen() {
   const retirementMonth = drawdownStart !== null && drawdownStart <= months ? drawdownStart : null;
   const balanceAtRetirement = retirementMonth !== null ? (totalData[retirementMonth]?.balance ?? 0) : totalFinal;
 
-  const visibleEntryData = useMemo(
-    () => entryData.filter((e) => !hiddenIds.has(e.id)),
-    [entryData, hiddenIds]
-  );
-
-  const visibleTotalData: MonthData[] = useMemo(() => {
-    return Array.from({ length: months + 1 }, (_, m) => ({
-      month: m,
-      balance: visibleEntryData.reduce((sum, e) => sum + (e.data[m]?.balance ?? 0), 0),
-    }));
-  }, [visibleEntryData, months]);
-
-  const toggleLine = (id: string) => {
+  const toggleExclude = (id: string) => {
     Haptics.selectionAsync();
-    setHiddenIds((prev) => {
+    setExcludedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -854,24 +856,22 @@ export default function CalculatorScreen() {
   };
 
   const chartLines: LineData[] = useMemo(() => [
-    ...entryData
-      .filter((e) => !hiddenIds.has(e.id))
-      .map((e) => ({
-        label: e.label || "Entry",
-        color: e.color,
-        data: e.data,
-      })),
-    ...(!hiddenIds.has("total") ? [{
+    ...entryData.map((e) => ({
+      label: e.label || "Entry",
+      color: e.color,
+      data: e.data,
+    })),
+    ...(!excludedIds.has("total") ? [{
       label: "Total",
       color: TOTAL_COLOR,
-      data: visibleTotalData,
+      data: totalData,
       isTotal: true,
     }] : []),
-  ], [entryData, visibleTotalData, hiddenIds]);
+  ], [entryData, totalData, excludedIds]);
 
   const yearlyTotals = useMemo(() => {
     const rows: { year: number; total: number; byEntry: number[]; interest: number; drawdown: number }[] = [];
-    const yearlyContribs = parsedEntries.reduce((s, e) => s + e.parsedYearlyContribution, 0);
+    const yearlyContribs = activeEntries.reduce((s, e) => s + e.parsedYearlyContribution, 0);
     let prevTotal = totalData[0]?.balance ?? 0;
     for (let y = 1; y * 12 <= months; y++) {
       const m = y * 12;
@@ -892,7 +892,7 @@ export default function CalculatorScreen() {
       prevTotal = total;
     }
     return rows;
-  }, [totalData, entryData, months, simResult, parsedEntries, drawdownStart]);
+  }, [totalData, entryData, months, simResult, activeEntries, drawdownStart]);
 
   const handlePreset = (m: number) => {
     Haptics.selectionAsync();
@@ -951,7 +951,7 @@ export default function CalculatorScreen() {
             <View>
               <Text style={styles.heroStatLabel}>Total</Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
-                {formatCurrency(touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : totalFinal)}
+                {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : totalFinal)}
               </Text>
             </View>
           </View>
@@ -961,7 +961,7 @@ export default function CalculatorScreen() {
             <View style={styles.heroDrawdownContent}>
               <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
               <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                {formatCurrency((touchMonth !== null ? visibleTotalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
+                {formatCurrency((touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
                 <Text style={styles.heroDrawdownSub}>
                   {" "}/ yr{touchMonth !== null ? ` · ${yearAtMonthOffset(touchMonth)}` : ""}
                 </Text>
@@ -995,28 +995,28 @@ export default function CalculatorScreen() {
 
           {/* Legend */}
           <View style={styles.legend}>
-            {entryData.map((e) => {
-              const hidden = hiddenIds.has(e.id);
+            {entryDataAll.map((e) => {
+              const excluded = excludedIds.has(e.id);
               return (
                 <TouchableOpacity
                   key={e.id}
-                  style={[styles.legendItem, hidden && styles.legendItemHidden]}
-                  onPress={() => toggleLine(e.id)}
+                  style={[styles.legendItem, excluded && styles.legendItemHidden]}
+                  onPress={() => toggleExclude(e.id)}
                   activeOpacity={0.6}
                 >
-                  <View style={[styles.legendDot, { backgroundColor: hidden ? "transparent" : e.color }, hidden && { borderWidth: 1.5, borderColor: e.color }]} />
-                  <Text style={[styles.legendText, hidden && styles.legendTextHidden]} numberOfLines={1}>
+                  <View style={[styles.legendDot, { backgroundColor: excluded ? "transparent" : e.color }, excluded && { borderWidth: 1.5, borderColor: e.color }]} />
+                  <Text style={[styles.legendText, excluded && styles.legendTextHidden]} numberOfLines={1}>
                     {e.label || "Entry"}
                   </Text>
                 </TouchableOpacity>
               );
             })}
             {(() => {
-              const hidden = hiddenIds.has("total");
+              const hidden = excludedIds.has("total");
               return (
                 <TouchableOpacity
                   style={[styles.legendItem, hidden && styles.legendItemHidden]}
-                  onPress={() => toggleLine("total")}
+                  onPress={() => toggleExclude("total")}
                   activeOpacity={0.6}
                 >
                   <View style={[styles.legendDot, hidden ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: TOTAL_COLOR } : styles.legendDotTotal]} />
@@ -1124,8 +1124,10 @@ export default function CalculatorScreen() {
         </View>
 
         {/* Entry Cards */}
-        {entryData.map((entry, idx) => (
-          <View key={entry.id} style={[styles.card, styles.entryCard]}>
+        {entryDataAll.map((entry, idx) => {
+            const excluded = entry.data === null;
+            return (
+          <View key={entry.id} style={[styles.card, styles.entryCard, excluded && styles.entryCardExcluded]}>
             <View style={[styles.entryColorBar, { backgroundColor: entry.color }]} />
             <View style={styles.entryBody}>
               <View style={styles.entryHeader}>
@@ -1148,12 +1150,21 @@ export default function CalculatorScreen() {
               </View>
 
               <View style={styles.entryFinalBadge}>
-                <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
-                  {formatCurrency(entry.data[entry.data.length - 1]?.balance ?? 0)}
-                </Text>
-                <Text style={styles.entryFinalSub}>
-                  in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
-                </Text>
+                {excluded ? (
+                  <View style={styles.entryExcludedBlock}>
+                    <Text style={styles.entryExcludedTag}>Excluded from projections</Text>
+                    <Text style={styles.entryFinalSub}>tap its line in the chart to re-include it</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
+                      {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
+                    </Text>
+                    <Text style={styles.entryFinalSub}>
+                      in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
+                    </Text>
+                  </>
+                )}
               </View>
 
               <View style={styles.entryFields}>
@@ -1212,7 +1223,8 @@ export default function CalculatorScreen() {
               </View>
             </View>
           </View>
-        ))}
+          );
+        })}
 
         {/* Add Entry */}
         <TouchableOpacity
@@ -1275,7 +1287,7 @@ export default function CalculatorScreen() {
                 <Text style={[styles.tableCell, { color: INTEREST_COLOR }]}>—</Text>
                 <Text style={[styles.tableCell, { color: DRAWDOWN_COLOR }]}>—</Text>
                 <View style={styles.tableGroupGap} />
-                {parsedEntries.map((e) => (
+                {entryData.map((e) => (
                   <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
                     {formatCompact(e.parsedPrincipal)}
                   </Text>
@@ -1521,6 +1533,18 @@ function makeStyles(
       flexDirection: "row",
       padding: 0,
       overflow: "hidden",
+    },
+    entryCardExcluded: {
+      opacity: 0.75,
+    },
+    entryExcludedTag: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.mutedForeground,
+      flexShrink: 1,
+    },
+    entryExcludedBlock: {
+      flexDirection: "column",
     },
     entryColorBar: {
       width: 4,
