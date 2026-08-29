@@ -91,6 +91,8 @@ interface Entry {
   principal: string;
   rate: string;
   yearlyContribution?: string;
+  /** Age at which this pot is first available for drawdown (empty = immediately). */
+  availableAge?: string;
 }
 
 const DEFAULT_ENTRIES: Entry[] = [
@@ -107,14 +109,37 @@ interface SimEntry {
   principal: number;
   annualRate: number;
   yearlyContribution: number;
+  /** Month offset from which this pot may be drawn down (0 = always available). */
+  availableMonth: number;
+}
+
+interface SimGap {
+  /** First month (1-based) when a requested withdrawal was withheld. */
+  start: number;
+  /** Consecutive months the withdrawal was withheld. */
+  months: number;
+  /** Month (1-based) a locked pot next became available; null if never within the period. */
+  resolvedAt: number | null;
+  /** Total balance held in locked pots when the gap began. */
+  frozenAtGapStart: number;
 }
 
 /**
  * Simulate all entries jointly so a shared monthly drawdown can be
  * withdrawn pro-rata across balances. Before drawdownStartMonth the
  * entries compound uninterrupted; from the month after it, 1/12 of
- * drawdownAnnual is deducted each month (split in proportion to each
- * entry's balance) until the period ends or the pot is exhausted.
+ * drawdownAnnual is deducted each month, split in proportion to each
+ * entry's balance.
+ *
+ * Entry-level availability: a pot whose availableMonth has not yet been
+ * reached is excluded from the drawdown entirely — it keeps compounding
+ * (and receiving contributions until retirement) untouched. The monthly
+ * draw is taken only from pots whose availableMonth has passed. If those
+ * available pots are exhausted while other pots still hold money locked
+ * behind an availability age, the withdrawal is withheld and recorded as
+ * a gap (see SimGap) until a locked pot becomes available or the period
+ * ends.
+ *
  * The annual amount rises by INFLATION_RATE each year of retirement.
  * Yearly contributions stop once retirement (drawdownStartMonth) is
  * reached, whether or not an income amount is set.
@@ -124,13 +149,16 @@ function simulateEntries(
   months: number,
   drawdownAnnual: number,
   drawdownStartMonth: number | null
-): { perEntry: MonthData[][]; totalWithdrawn: number; withdrawnByMonth: number[] } {
+): { perEntry: MonthData[][]; totalWithdrawn: number; withdrawnByMonth: number[]; gaps: SimGap[] } {
   const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
   const drawing = drawdownAnnual > 0 && drawdownStartMonth !== null;
   let totalWithdrawn = 0;
   const withdrawnByMonth: number[] = [0];
+  const gaps: SimGap[] = [];
+  let gapStart: number | null = null;
+  let frozenAtGapStart = 0;
   for (let m = 1; m <= months; m++) {
     for (let i = 0; i < balances.length; i++) {
       balances[i] *= 1 + mrs[i];
@@ -149,14 +177,29 @@ function simulateEntries(
       // Inflation-adjust the annual amount for each full year of retirement
       const yearsIn = Math.floor((m - drawdownStartMonth! - 1) / 12);
       const monthlyDraw = (drawdownAnnual / 12) * Math.pow(1 + INFLATION_RATE, yearsIn);
-      const available = balances.reduce((s, b) => s + Math.max(0, b), 0);
+      // Only pots that are available this month may be drawn down
+      let available = 0;
+      for (let i = 0; i < balances.length; i++) {
+        if (simEntries[i].availableMonth <= m) available += Math.max(0, balances[i]);
+      }
+      const totalBal = balances.reduce((s, b) => s + Math.max(0, b), 0);
       const take = Math.min(monthlyDraw, available);
       if (take > 0) {
         for (let i = 0; i < balances.length; i++) {
-          if (balances[i] > 0) balances[i] -= (balances[i] / available) * take;
+          if (simEntries[i].availableMonth <= m && balances[i] > 0) {
+            balances[i] -= (balances[i] / available) * take;
+          }
         }
         totalWithdrawn += take;
         withdrawnThisMonth = take;
+      }
+      // Withheld entirely while some money remains locked behind an age
+      if (gapStart === null && take === 0 && totalBal > 0) {
+        gapStart = m;
+        frozenAtGapStart = totalBal;
+      } else if (gapStart !== null && take > 0) {
+        gaps.push({ start: gapStart, months: m - gapStart, resolvedAt: m, frozenAtGapStart });
+        gapStart = null;
       }
     }
     withdrawnByMonth.push(withdrawnThisMonth);
@@ -164,7 +207,10 @@ function simulateEntries(
       perEntry[i].push({ month: m, balance: balances[i] });
     }
   }
-  return { perEntry, totalWithdrawn, withdrawnByMonth };
+  if (gapStart !== null) {
+    gaps.push({ start: gapStart, months: months - gapStart + 1, resolvedAt: null, frozenAtGapStart });
+  }
+  return { perEntry, totalWithdrawn, withdrawnByMonth, gaps };
 }
 
 function formatCurrency(amount: number): string {
@@ -188,6 +234,25 @@ function formatCompact(amount: number): string {
     return "£" + s + "K";
   }
   return "£" + amount.toFixed(0);
+}
+
+/** e.g. "4 yr" / "6 mo" / "1.5 yr" for a count of months. */
+function formatMonthSpan(months: number): string {
+  const yrs = months / 12;
+  if (months < 12) return `${months} mo`;
+  if (Number.isInteger(yrs)) return `${yrs} yr`;
+  return `${yrs.toFixed(1)} yr`;
+}
+
+/** Human description of a drawdown gap caused by locked pots. */
+function describeGap(gap: SimGap): string {
+  const startDesc = `age ${ageAtMonthOffset(gap.start)} (${yearAtMonthOffset(gap.start)})`;
+  const frozen = formatCurrency(gap.frozenAtGapStart);
+  if (gap.resolvedAt !== null) {
+    const toAge = ageAtMonthOffset(gap.resolvedAt);
+    return `Starts ${startDesc}: ${frozen} locked out, no drawdown for ${formatMonthSpan(gap.months)} until a pot becomes available at age ${toAge}`;
+  }
+  return `Starts ${startDesc}: ${frozen} locked out, no drawdown for ${formatMonthSpan(gap.months)} — no pot becomes available in this time period`;
 }
 
 /** Round a rough step value up to the nearest "nice" number. */
@@ -601,13 +666,17 @@ export default function CalculatorScreen() {
 
   const parsedEntries = useMemo(
     () =>
-      entries.map((e, i) => ({
-        ...e,
-        color: ENTRY_COLORS[i % ENTRY_COLORS.length],
-        parsedPrincipal: parseFloat(e.principal.replace(/,/g, "")) || 0,
-        parsedRate: parseFloat(e.rate) || 0,
-        parsedYearlyContribution: e.yearlyContribution ? (parseFloat(e.yearlyContribution.replace(/,/g, "")) || 0) : 0,
-      })),
+      entries.map((e, i) => {
+        const availAge = e.availableAge ? parseInt(e.availableAge, 10) : NaN;
+        return {
+          ...e,
+          color: ENTRY_COLORS[i % ENTRY_COLORS.length],
+          parsedPrincipal: parseFloat(e.principal.replace(/,/g, "")) || 0,
+          parsedRate: parseFloat(e.rate) || 0,
+          parsedYearlyContribution: e.yearlyContribution ? (parseFloat(e.yearlyContribution.replace(/,/g, "")) || 0) : 0,
+          parsedAvailableAge: isNaN(availAge) ? null : availAge,
+        };
+      }),
     [entries]
   );
 
@@ -626,6 +695,8 @@ export default function CalculatorScreen() {
           principal: e.parsedPrincipal,
           annualRate: e.parsedRate,
           yearlyContribution: e.parsedYearlyContribution,
+          availableMonth:
+            e.parsedAvailableAge != null ? snapToYearStart(monthOffsetAtAge(e.parsedAvailableAge)) : 0,
         })),
         months,
         parsedDrawdown,
@@ -932,6 +1003,16 @@ export default function CalculatorScreen() {
               ? "Enter your retirement age"
               : "Retirement falls beyond the selected time period"}
           </Text>
+          {simResult.gaps.length > 0 && (
+            <View style={styles.gapBanner}>
+              <Text style={styles.gapBannerTitle}>Drawdown paused — available pots ran out</Text>
+              {simResult.gaps.map((g, i) => (
+                <Text key={i} style={styles.gapBannerRow}>
+                  {describeGap(g)}
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Entry Cards */}
@@ -1005,6 +1086,20 @@ export default function CalculatorScreen() {
                     placeholderTextColor={colors.mutedForeground}
                   />
                   <Text style={styles.inputAffix}>/yr</Text>
+                </View>
+              </View>
+              <View style={styles.entryContribRow}>
+                <Text style={styles.entryContribLabel}>Available from age</Text>
+                <View style={[styles.inputWrap, { width: 110 }]}>
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }]}
+                    value={entry.availableAge ?? ""}
+                    onChangeText={(v) => updateEntry(entry.id, "availableAge", v)}
+                    keyboardType="numeric"
+                    placeholder="Optional"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                  <Text style={styles.inputAffix}>age</Text>
                 </View>
               </View>
             </View>
@@ -1264,6 +1359,25 @@ function makeStyles(
     drawdownHintActive: {
       fontFamily: "Inter_600SemiBold",
       color: "#f59e0b",
+    },
+    gapBanner: {
+      marginTop: 10,
+      borderRadius: 12,
+      backgroundColor: "#fff7ed",
+      borderWidth: 1,
+      borderColor: "#fed7aa",
+      padding: 10,
+      gap: 4,
+    },
+    gapBannerTitle: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: "#9a3412",
+    },
+    gapBannerRow: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: "#9a3412",
     },
     presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     presetBtn: {
