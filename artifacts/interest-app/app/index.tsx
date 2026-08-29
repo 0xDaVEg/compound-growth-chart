@@ -45,6 +45,10 @@ const BIRTH_DATE = new Date(1979, 11, 10); // December 10, 1979
 /** Annual inflation applied to the retirement income drawdown. */
 const INFLATION_RATE = 0.03;
 
+/** UK state pension: implicit income source from this age. */
+const STATE_PENSION_AGE = 67;
+const STATE_PENSION_ANNUAL = 12547.6;
+
 function ageAtMonthOffset(monthOffset: number): number {
   const now = new Date();
   const future = new Date(now.getFullYear(), now.getMonth() + monthOffset, 15);
@@ -143,6 +147,11 @@ interface SimGap {
  * The annual amount rises by INFLATION_RATE each year of retirement.
  * Yearly contributions stop once retirement (drawdownStartMonth) is
  * reached, whether or not an income amount is set.
+ *
+ * The UK state pension is treated as an implicit income source: from
+ * STATE_PENSION_AGE it pays STATE_PENSION_ANNUAL per year in monthly
+ * instalments, rising with INFLATION_RATE each year. It offsets the
+ * desired drawdown, so only the shortfall is taken from the pots.
  */
 function simulateEntries(
   simEntries: SimEntry[],
@@ -154,6 +163,7 @@ function simulateEntries(
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
   const drawing = drawdownAnnual > 0 && drawdownStartMonth !== null;
+  const statePensionStart = snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE));
   let totalWithdrawn = 0;
   const withdrawnByMonth: number[] = [0];
   const gaps: SimGap[] = [];
@@ -177,13 +187,20 @@ function simulateEntries(
       // Inflation-adjust the annual amount for each full year of retirement
       const yearsIn = Math.floor((m - drawdownStartMonth! - 1) / 12);
       const monthlyDraw = (drawdownAnnual / 12) * Math.pow(1 + INFLATION_RATE, yearsIn);
+      // State pension (from age 67) offsets the desired income
+      let pensionThisMonth = 0;
+      if (m > statePensionStart) {
+        const yearsInPen = Math.floor((m - statePensionStart - 1) / 12);
+        pensionThisMonth = (STATE_PENSION_ANNUAL / 12) * Math.pow(1 + INFLATION_RATE, yearsInPen);
+      }
+      const netDraw = Math.max(0, monthlyDraw - pensionThisMonth);
       // Only pots that are available this month may be drawn down
       let available = 0;
       for (let i = 0; i < balances.length; i++) {
         if (simEntries[i].availableMonth <= m) available += Math.max(0, balances[i]);
       }
       const totalBal = balances.reduce((s, b) => s + Math.max(0, b), 0);
-      const take = Math.min(monthlyDraw, available);
+      const take = Math.min(netDraw, available);
       if (take > 0) {
         for (let i = 0; i < balances.length; i++) {
           if (simEntries[i].availableMonth <= m && balances[i] > 0) {
@@ -194,7 +211,8 @@ function simulateEntries(
         withdrawnThisMonth = take;
       }
       // Withheld entirely while some money remains locked behind an age
-      if (gapStart === null && take === 0 && totalBal > 0) {
+      // (only counts when the state pension does not cover the income)
+      if (gapStart === null && netDraw > 0 && take === 0 && totalBal > 0) {
         gapStart = m;
         frozenAtGapStart = totalBal;
       } else if (gapStart !== null && take > 0) {
@@ -996,7 +1014,7 @@ export default function CalculatorScreen() {
           </View>
           <Text style={[styles.drawdownHint, { marginTop: 8 }]}>
             {drawdownActive
-              ? "Withdrawn monthly · rises 3% each year with inflation"
+              ? `Withdrawn monthly · rises 3% each year with inflation · state pension (${STATE_PENSION_AGE}) offsets £${formatCompact(STATE_PENSION_ANNUAL)}/yr from age ${STATE_PENSION_AGE}`
               : parsedDrawdown <= 0
               ? "Enter an annual income and your retirement age — withdrawn monthly from the total"
               : drawdownStart === null
