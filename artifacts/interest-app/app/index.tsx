@@ -1096,7 +1096,7 @@ export default function CalculatorScreen() {
                     value={entry.availableAge ?? ""}
                     onChangeText={(v) => updateEntry(entry.id, "availableAge", v)}
                     keyboardType="numeric"
-                    placeholder="Optional"
+                    placeholder=""
                     placeholderTextColor={colors.mutedForeground}
                   />
                   <Text style={styles.inputAffix}>age</Text>
