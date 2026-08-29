@@ -40,6 +40,10 @@ const TOTAL_COLOR = "#1a2d5a";
 // removes value but is received as income (warm orange-red)
 const INTEREST_COLOR = "#15803d";
 const DRAWDOWN_COLOR = "#e8590c";
+// Capital gains tax applies to fully-taxable pots (pensions and ISAs are exempt)
+const CGT_RATE = 0.2;
+const CGT_ALLOWANCE = 3000;
+const CGT_COLOR = "#b45309";
 
 const BIRTH_DATE = new Date(1979, 11, 10); // December 10, 1979
 
@@ -147,6 +151,8 @@ function genId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+type TaxClass = "taxable" | "isa" | "pension";
+
 interface Entry {
   id: string;
   label: string;
@@ -155,6 +161,8 @@ interface Entry {
   yearlyContribution?: string;
   /** Age at which this pot is first available for drawdown (empty = immediately). */
   availableAge?: string;
+  /** Tax wrapper: pension and ISA pots are exempt from capital gains tax. */
+  taxClass?: TaxClass;
 }
 
 const DEFAULT_ENTRIES: Entry[] = [
@@ -173,6 +181,8 @@ interface SimEntry {
   yearlyContribution: number;
   /** Month offset from which this pot may be drawn down (0 = always available). */
   availableMonth: number;
+  /** True when the pot is subject to capital gains tax on drawdown. */
+  taxable: boolean;
 }
 
 interface SimGap {
@@ -211,6 +221,14 @@ interface SimGap {
  * per year in monthly instalments, rising with INFLATION_RATE each year.
  * It offsets the desired drawdown, so only the shortfall is taken from
  * the pots.
+ *
+ * Capital gains tax: taxable pots (taxable flag) carry an untaxed cost
+ * basis (principal + contributions). When a taxable pot is drawn down, the
+ * gain realised above that basis is taxed at CGT_RATE, grossing up the
+ * withdrawal so the income received still matches the target. A single
+ * £3,000 annual allowance (CGT_ALLOWANCE) is shared across all taxable
+ * pots per sim year and resets at each 12-month boundary. Pension and ISA
+ * pots are exempt.
  */
 function simulateEntries(
   simEntries: SimEntry[],
@@ -218,14 +236,27 @@ function simulateEntries(
   drawdownAnnual: number,
   drawdownStartMonth: number | null,
   statePensionEnabled: boolean
-): { perEntry: MonthData[][]; totalWithdrawn: number; withdrawnByMonth: number[]; gaps: SimGap[] } {
+): {
+  perEntry: MonthData[][];
+  totalWithdrawn: number;
+  withdrawnByMonth: number[];
+  gaps: SimGap[];
+  cgtByMonth: number[];
+  totalCgtPaid: number;
+} {
   const mrs = simEntries.map((e) => e.annualRate / 100 / 12);
+  // Untaxed cost basis per pot (principal + contributions); CGT is charged
+  // on the gain above this when the pot is drawn down.
+  const basis = simEntries.map((e) => e.principal);
   const balances = simEntries.map((e) => e.principal);
   const perEntry: MonthData[][] = simEntries.map((e) => [{ month: 0, balance: e.principal }]);
   const drawing = drawdownAnnual > 0 && drawdownStartMonth !== null;
   const statePensionStart = statePensionEnabled ? snapToYearStart(monthOffsetAtAge(STATE_PENSION_AGE)) : Infinity;
   let totalWithdrawn = 0;
   const withdrawnByMonth: number[] = [0];
+  const cgtByMonth: number[] = [0];
+  let totalCgtPaid = 0;
+  let allowanceRemaining = CGT_ALLOWANCE;
   const gaps: SimGap[] = [];
   let gapStart: number | null = null;
   let frozenAtGapStart = 0;
@@ -240,9 +271,14 @@ function simulateEntries(
         (drawdownStartMonth === null || m < drawdownStartMonth)
       ) {
         balances[i] += simEntries[i].yearlyContribution;
+        basis[i] += simEntries[i].yearlyContribution;
       }
     }
+    // Sim years align with tax years: the CGT allowance resets each
+    // 12-month boundary.
+    if (m % 12 === 0) allowanceRemaining = CGT_ALLOWANCE;
     let withdrawnThisMonth = 0;
+    let cgtThisMonth = 0;
     if (drawing && m > drawdownStartMonth!) {
       // Inflation-adjust the annual amount for each full year of retirement
       const yearsIn = Math.floor((m - drawdownStartMonth! - 1) / 12);
@@ -255,32 +291,76 @@ function simulateEntries(
       }
       const netDraw = Math.max(0, monthlyDraw - pensionThisMonth);
       // Only pots that are available this month may be drawn down
-      let available = 0;
-      for (let i = 0; i < balances.length; i++) {
-        if (simEntries[i].availableMonth <= m) available += Math.max(0, balances[i]);
-      }
       const totalBal = balances.reduce((s, b) => s + Math.max(0, b), 0);
-      const take = Math.min(netDraw, available);
-      if (take > 0) {
-        for (let i = 0; i < balances.length; i++) {
-          if (simEntries[i].availableMonth <= m && balances[i] > 0) {
-            balances[i] -= (balances[i] / available) * take;
+      let availExempt = 0;
+      let availTaxableValue = 0;
+      let availTaxableBasis = 0;
+      for (let i = 0; i < balances.length; i++) {
+        if (simEntries[i].availableMonth <= m && balances[i] > 0) {
+          if (simEntries[i].taxable) {
+            availTaxableValue += balances[i];
+            availTaxableBasis += basis[i];
+          } else {
+            availExempt += balances[i];
           }
         }
-        totalWithdrawn += take;
-        withdrawnThisMonth = take;
+      }
+      const availTotal = availExempt + availTaxableValue;
+      if (netDraw > 0 && availTotal > 0) {
+        // The draw is shared pro-rata by available balance between exempt
+        // and taxable pots. Taxable pots are grossed up so the income
+        // received (net of CGT) still matches the target.
+        const netExempt = netDraw * (availExempt / availTotal);
+        const netTaxable = netDraw * (availTaxableValue / availTotal);
+        const exemptTake = Math.min(netExempt, availExempt);
+        if (exemptTake > 0) {
+          for (let i = 0; i < balances.length; i++) {
+            if (simEntries[i].availableMonth <= m && balances[i] > 0 && !simEntries[i].taxable) {
+              balances[i] -= (balances[i] / availExempt) * exemptTake;
+            }
+          }
+        }
+        let grossTaxable = 0;
+        let tax = 0;
+        if (availTaxableValue > 0) {
+          const cgtRatio = (availTaxableValue - availTaxableBasis) / availTaxableValue;
+          // Gross amount such that gross - tax = netTaxable:
+          //   if the realised gain fits inside the allowance, no gross-up
+          if (cgtRatio <= 0 || cgtRatio * netTaxable <= allowanceRemaining) {
+            grossTaxable = netTaxable;
+          } else {
+            grossTaxable = (netTaxable - CGT_RATE * allowanceRemaining) / (1 - CGT_RATE * cgtRatio);
+          }
+          grossTaxable = Math.max(0, Math.min(grossTaxable, availTaxableValue));
+          const gain = cgtRatio * grossTaxable;
+          tax = CGT_RATE * Math.max(0, gain - allowanceRemaining);
+          allowanceRemaining -= Math.max(0, Math.min(gain, allowanceRemaining));
+          for (let i = 0; i < balances.length; i++) {
+            if (simEntries[i].availableMonth <= m && balances[i] > 0 && simEntries[i].taxable) {
+              const preBal = balances[i];
+              const deduct = grossTaxable * (preBal / availTaxableValue);
+              balances[i] = preBal - deduct;
+              basis[i] = Math.max(0, basis[i] - deduct * (basis[i] / preBal));
+            }
+          }
+        }
+        withdrawnThisMonth = exemptTake + (grossTaxable - tax);
+        totalWithdrawn += withdrawnThisMonth;
+        cgtThisMonth = tax;
+        totalCgtPaid += tax;
       }
       // Withheld entirely while some money remains locked behind an age
       // (only counts when the state pension does not cover the income)
-      if (gapStart === null && netDraw > 0 && take === 0 && totalBal > 0) {
+      if (gapStart === null && netDraw > 0 && withdrawnThisMonth === 0 && totalBal > 0) {
         gapStart = m;
         frozenAtGapStart = totalBal;
-      } else if (gapStart !== null && take > 0) {
+      } else if (gapStart !== null && withdrawnThisMonth > 0) {
         gaps.push({ start: gapStart, months: m - gapStart, resolvedAt: m, frozenAtGapStart });
         gapStart = null;
       }
     }
     withdrawnByMonth.push(withdrawnThisMonth);
+    cgtByMonth.push(cgtThisMonth);
     for (let i = 0; i < balances.length; i++) {
       perEntry[i].push({ month: m, balance: balances[i] });
     }
@@ -288,7 +368,7 @@ function simulateEntries(
   if (gapStart !== null) {
     gaps.push({ start: gapStart, months: months - gapStart + 1, resolvedAt: null, frozenAtGapStart });
   }
-  return { perEntry, totalWithdrawn, withdrawnByMonth, gaps };
+  return { perEntry, totalWithdrawn, withdrawnByMonth, gaps, cgtByMonth, totalCgtPaid };
 }
 
 function formatCurrency(amount: number): string {
@@ -767,6 +847,8 @@ export default function CalculatorScreen() {
           parsedRate: parseFloat(e.rate) || 0,
           parsedYearlyContribution: e.yearlyContribution ? (parseFloat(e.yearlyContribution.replace(/,/g, "")) || 0) : 0,
           parsedAvailableAge: isNaN(availAge) ? null : availAge,
+          taxClass: e.taxClass ?? "taxable",
+          taxable: (e.taxClass ?? "taxable") === "taxable",
         };
       }),
     [entries]
@@ -794,6 +876,7 @@ export default function CalculatorScreen() {
           yearlyContribution: e.parsedYearlyContribution,
           availableMonth:
             e.parsedAvailableAge != null ? snapToYearStart(monthOffsetAtAge(e.parsedAvailableAge)) : 0,
+          taxable: e.taxable,
         })),
         months,
         parsedDrawdown,
@@ -870,24 +953,30 @@ export default function CalculatorScreen() {
   ], [entryData, totalData, excludedIds]);
 
   const yearlyTotals = useMemo(() => {
-    const rows: { year: number; total: number; byEntry: number[]; interest: number; drawdown: number }[] = [];
+    const rows: { year: number; total: number; byEntry: number[]; interest: number; drawdown: number; cgt: number }[] = [];
     const yearlyContribs = activeEntries.reduce((s, e) => s + e.parsedYearlyContribution, 0);
     let prevTotal = totalData[0]?.balance ?? 0;
     for (let y = 1; y * 12 <= months; y++) {
       const m = y * 12;
       let yearWithdrawn = 0;
-      for (let k = m - 11; k <= m; k++) yearWithdrawn += simResult.withdrawnByMonth[k] ?? 0;
+      let yearCgt = 0;
+      for (let k = m - 11; k <= m; k++) {
+        yearWithdrawn += simResult.withdrawnByMonth[k] ?? 0;
+        yearCgt += simResult.cgtByMonth[k] ?? 0;
+      }
       const total = totalData[m]?.balance ?? 0;
       rows.push({
         year: y,
         total,
         byEntry: entryData.map((e) => e.data[m]?.balance ?? 0),
         // Interest earned during this year: balance change plus what was
-        // withdrawn, minus contributions paid in (none after retirement)
+        // withdrawn (income net of CGT) plus the CGT itself, minus
+        // contributions paid in (none after retirement)
         interest:
-          total - prevTotal + yearWithdrawn -
+          total - prevTotal + yearWithdrawn + yearCgt -
           (drawdownStart === null || m < drawdownStart ? yearlyContribs : 0),
         drawdown: yearWithdrawn,
+        cgt: yearCgt,
       });
       prevTotal = total;
     }
@@ -1111,6 +1200,17 @@ export default function CalculatorScreen() {
               />
             </View>
           )}
+          {simResult.totalCgtPaid > 0 && (
+            <View style={styles.cgtRow}>
+              <Text style={styles.pensionLabel}>
+                Capital gains tax · {Math.round(CGT_RATE * 100)}% on gains above{" "}
+                {formatCurrency(CGT_ALLOWANCE)}/yr
+              </Text>
+              <Text style={[styles.cgtValue, { color: CGT_COLOR }]}>
+                {formatCurrency(simResult.totalCgtPaid)}
+              </Text>
+            </View>
+          )}
           {simResult.gaps.length > 0 && (
             <View style={styles.gapBanner}>
               <Text style={styles.gapBannerTitle}>Drawdown paused — available pots ran out</Text>
@@ -1221,6 +1321,26 @@ export default function CalculatorScreen() {
                   <Text style={styles.inputAffix}>age</Text>
                 </View>
               </View>
+              <View style={styles.entryContribRow}>
+                <Text style={styles.entryContribLabel}>Tax wrapper</Text>
+                <View style={styles.taxClassRow}>
+                  {(["taxable", "isa", "pension"] as const).map((tc) => {
+                    const active = (entry.taxClass ?? "taxable") === tc;
+                    return (
+                      <TouchableOpacity
+                        key={tc}
+                        style={[styles.taxClassChip, active && { backgroundColor: entry.color, borderColor: entry.color }]}
+                        onPress={() => updateEntry(entry.id, "taxClass", tc)}
+                        activeOpacity={0.6}
+                      >
+                        <Text style={[styles.taxClassChipText, active && styles.taxClassChipTextActive]}>
+                          {tc === "taxable" ? "Taxable" : tc === "isa" ? "ISA" : "Pension"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
           </View>
           );
@@ -1261,11 +1381,16 @@ export default function CalculatorScreen() {
                     Interest
                   </Text>
                 </View>
-                <View style={styles.tableDataCol}>
-                  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold, { color: DRAWDOWN_COLOR }]} numberOfLines={1}>
-                    Drawdown
-                  </Text>
-                </View>
+<View style={styles.tableDataCol}>
+  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold, { color: DRAWDOWN_COLOR }]} numberOfLines={1}>
+    Drawdown
+  </Text>
+</View>
+<View style={styles.tableDataCol}>
+  <Text style={[styles.tableHeaderText, styles.tableHeaderTextBold, { color: CGT_COLOR }]} numberOfLines={1}>
+    CGT
+  </Text>
+</View>
                 <View style={styles.tableGroupGap} />
                 {entryData.map((e) => (
                   <View key={e.id} style={styles.tableDataCol}>
@@ -1286,6 +1411,7 @@ export default function CalculatorScreen() {
                 </Text>
                 <Text style={[styles.tableCell, { color: INTEREST_COLOR }]}>—</Text>
                 <Text style={[styles.tableCell, { color: DRAWDOWN_COLOR }]}>—</Text>
+                <Text style={[styles.tableCell, { color: CGT_COLOR }]}>—</Text>
                 <View style={styles.tableGroupGap} />
                 {entryData.map((e) => (
                   <Text key={e.id} style={[styles.tableCell, { color: e.color }]}>
@@ -1313,6 +1439,9 @@ export default function CalculatorScreen() {
                   </Text>
                   <Text style={[styles.tableCell, { color: DRAWDOWN_COLOR }]}>
                     {row.drawdown > 0 ? formatCompact(row.drawdown) : "—"}
+                  </Text>
+                  <Text style={[styles.tableCell, { color: CGT_COLOR }]}>
+                    {row.cgt > 0 ? formatCompact(row.cgt) : "—"}
                   </Text>
                   <View style={styles.tableGroupGap} />
                   {row.byEntry.map((bal, i) => (
@@ -1506,6 +1635,31 @@ function makeStyles(
       gap: 12,
       marginTop: 8,
     },
+    cgtRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginTop: 8,
+    },
+    cgtValue: {
+      fontSize: 15,
+      fontFamily: "Inter_700Bold",
+    },
+    taxClassRow: { flexDirection: "row", gap: 6 },
+    taxClassChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    taxClassChipText: {
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+      color: colors.mutedForeground,
+    },
+    taxClassChipTextActive: { color: "#ffffff" },
     pensionLabel: {
       flex: 1,
       fontSize: 12,
