@@ -1278,9 +1278,9 @@ export default function CalculatorScreen() {
                           <Text style={styles.entryFinalSub}>at retirement</Text>
                         </View>
                         <View style={styles.entryDualCol}>
-                          <Text style={[styles.entryFinalLabel, { color: entry.color, fontSize: 16 }]}>
-                            {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
-                          </Text>
+<Text style={[styles.entryFinalLabel, styles.entryBadgeSmall, { color: entry.color }]}>
+  {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
+</Text>
                           <Text style={styles.entryFinalSub}>
                             in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
                           </Text>
@@ -1777,15 +1777,20 @@ function makeStyles(
       fontFamily: "Inter_400Regular",
       color: colors.mutedForeground,
     },
+    entryBadgeSmall: {
+      fontSize: 16,
+      marginTop: 6,
+    },
     entryDualBadge: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "flex-end",
       gap: 24,
       marginBottom: 12,
     },
     entryDualCol: {
       flexDirection: "column",
       alignItems: "flex-start",
+      justifyContent: "flex-end",
       gap: 1,
     },
     entryFields: { flexDirection: "row" },
