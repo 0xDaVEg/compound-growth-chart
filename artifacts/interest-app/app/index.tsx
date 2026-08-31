@@ -1779,7 +1779,8 @@ function makeStyles(
     },
     entryBadgeSmall: {
       fontSize: 16,
-      marginTop: 2,
+      lineHeight: 30,
+      marginTop: 0,
     },
     entryDualBadge: {
       flexDirection: "row",
