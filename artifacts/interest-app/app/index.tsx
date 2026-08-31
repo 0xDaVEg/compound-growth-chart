@@ -1048,10 +1048,10 @@ export default function CalculatorScreen() {
             {drawdownActive && (
               <View style={styles.heroStatCol}>
                 <Text style={styles.heroStatLabel}>Desired Retirement Income</Text>
-                <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                  {formatCurrency(parsedDrawdown)}
-                  <Text style={styles.heroDrawdownSub}> / yr</Text>
-                </Text>
+<Text style={[styles.heroStatValue, styles.accentText]}>
+  {formatCurrency(parsedDrawdown)}
+  <Text style={styles.heroDrawdownSub}> / yr</Text>
+</Text>
               </View>
             )}
           </View>
@@ -1066,7 +1066,7 @@ export default function CalculatorScreen() {
                       ? `Net Worth · ${ageAtMonthOffset(touchMonth)}y`
                       : `Net Worth (Highest) · ${ageAtMonthOffset(peakData.month)}y`}
                   </Text>
-                  <Text style={[styles.heroStatValue, styles.accentText]}>
+                  <Text style={[styles.heroStatValue, styles.drawdownText]}>
                     {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : peakData.balance)}
                   </Text>
                 </View>
@@ -1569,6 +1569,7 @@ function makeStyles(
       alignItems: "center",
       width: 84,
       paddingLeft: 16,
+      marginRight: 72,
       borderLeftWidth: 1,
       borderLeftColor: "rgba(255,255,255,0.12)",
     },
