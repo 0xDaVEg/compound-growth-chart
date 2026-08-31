@@ -1059,26 +1059,34 @@ export default function CalculatorScreen() {
 
           <View style={styles.heroDrawdownRow}>
             <View style={styles.heroDrawdownDivider} />
-            <View style={styles.heroDrawdownContent}>
-              <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
-              <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                {formatCurrency((touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
-                <Text style={styles.heroDrawdownSub}>
-                  {" "}/ yr{touchMonth !== null ? ` · ${ageAtMonthOffset(touchMonth)}y` : ""}
-                </Text>
-              </Text>
-            </View>
-            {drawdownActive && (
-              <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
-                <Text style={styles.heroStatLabel}>
-                  Desired Retirement Income (from age {parsedRetirementAge})
-                </Text>
-                <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                  {formatCurrency(parsedDrawdown)}
-                  <Text style={styles.heroDrawdownSub}> / yr</Text>
-                </Text>
+            <View style={styles.heroAgeRow}>
+              <View style={styles.heroAgeContent}>
+                <View style={styles.heroDrawdownContent}>
+                  <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
+                  <Text style={[styles.heroStatValue, styles.drawdownText]}>
+                    {formatCurrency((touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
+                    <Text style={styles.heroDrawdownSub}>{" "}/ yr</Text>
+                  </Text>
+                </View>
+                {drawdownActive && (
+                  <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
+                    <Text style={styles.heroStatLabel}>Desired Retirement Income</Text>
+                    <Text style={[styles.heroStatValue, styles.drawdownText]}>
+                      {formatCurrency(parsedDrawdown)}
+                      <Text style={styles.heroDrawdownSub}> / yr</Text>
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
+              <View style={styles.heroAgeBlock}>
+                <Text style={styles.heroAgeValue}>
+                  {touchMonth !== null && drawdownActive
+                    ? ageAtMonthOffset(touchMonth)
+                    : parsedRetirementAge}
+                </Text>
+                <Text style={styles.heroAgeLabel}>AGE</Text>
+              </View>
+            </View>
           </View>
         </LinearGradient>
 
@@ -1549,6 +1557,31 @@ function makeStyles(
       marginBottom: 14,
     },
     heroDrawdownContent: {},
+    heroAgeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 16,
+    },
+    heroAgeContent: { flex: 1 },
+    heroAgeBlock: {
+      alignItems: "center",
+      paddingLeft: 16,
+      borderLeftWidth: 1,
+      borderLeftColor: "rgba(255,255,255,0.12)",
+    },
+    heroAgeValue: {
+      fontSize: 64,
+      fontFamily: "Inter_700Bold",
+      color: "#f59e0b",
+      lineHeight: 70,
+    },
+    heroAgeLabel: {
+      fontSize: 10,
+      fontFamily: "Inter_600SemiBold",
+      color: "rgba(255,255,255,0.5)",
+      letterSpacing: 2,
+    },
     drawdownText: { color: "#f59e0b" },
     heroDrawdownSub: {
       fontSize: 12,
