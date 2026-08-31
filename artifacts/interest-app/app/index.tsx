@@ -1221,14 +1221,6 @@ export default function CalculatorScreen() {
               ? "Enter your retirement age"
               : "Retirement falls beyond the selected time period"}
           </Text>
-          {simResult.totalCgtPaid > 0 && (
-            <View style={styles.cgtRow}>
-              <Text style={[styles.pensionLabel, { color: CGT_COLOR }]}>
-                Capital gains tax · {Math.round(CGT_RATE * 100)}% on gains above{" "}
-                {formatCurrency(CGT_ALLOWANCE)}/yr
-              </Text>
-            </View>
-          )}
           {simResult.gaps.length > 0 && (
             <View style={styles.gapBanner}>
               <Text style={styles.gapBannerTitle}>Drawdown paused — available pots ran out</Text>
@@ -1380,6 +1372,12 @@ export default function CalculatorScreen() {
                   })}
                 </View>
               </View>
+              {(entry.taxClass ?? "taxable") === "taxable" && (
+                <Text style={[styles.cgtEntryLabel, { color: CGT_COLOR }]}>
+                  Capital gains tax · {Math.round(CGT_RATE * 100)}% on gains above{" "}
+                  {formatCurrency(CGT_ALLOWANCE)}/yr
+                </Text>
+              )}
             </View>
           </View>
           );
@@ -1704,9 +1702,6 @@ function makeStyles(
       gap: 12,
       marginTop: 8,
     },
-    cgtRow: {
-      marginTop: 8,
-    },
     taxClassRow: { flexDirection: "row", gap: 6 },
     taxClassChip: {
       paddingHorizontal: 10,
@@ -1833,6 +1828,11 @@ function makeStyles(
       fontSize: 13,
       fontFamily: "Inter_400Regular",
       color: colors.mutedForeground,
+    },
+    cgtEntryLabel: {
+      marginTop: 6,
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
     },
     inputWrap: {
       flexDirection: "row",
