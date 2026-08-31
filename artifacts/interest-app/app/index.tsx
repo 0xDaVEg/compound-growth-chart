@@ -1530,7 +1530,7 @@ function makeStyles(
     },
     heroStats: { flexDirection: "row", alignItems: "center" },
     heroStatCol: { flex: 1 },
-    heroStatColWide: { flex: 1.6 },
+    heroStatColWide: { flex: 1.3 },
     heroStatLabel: {
       fontSize: 12,
       fontFamily: "Inter_400Regular",
@@ -1565,7 +1565,7 @@ function makeStyles(
       justifyContent: "space-between",
       gap: 16,
     },
-    heroAgeContent: { flex: 1.6 },
+    heroAgeContent: { flex: 1.3 },
     heroAgeBlock: {
       flex: 1,
       alignItems: "center",
