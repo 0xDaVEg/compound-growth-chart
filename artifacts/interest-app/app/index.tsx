@@ -1040,21 +1040,20 @@ export default function CalculatorScreen() {
           <Text style={styles.heroLabel}>TOTAL PROJECTED RETIREMENT POT</Text>
           <Text style={styles.heroBalance}>{formatCurrency(balanceAtRetirement)}</Text>
           <View style={styles.heroStats}>
-            <View>
+            <View style={styles.heroStatCol}>
               <Text style={styles.heroStatLabel}>Total Invested</Text>
               <Text style={styles.heroStatValue}>{formatCurrency(totalInvested)}</Text>
             </View>
             <View style={styles.heroDivider} />
-            <View>
-              <Text style={styles.heroStatLabel}>
-                {touchMonth !== null
-                  ? `Net Worth · ${ageAtMonthOffset(touchMonth)}y`
-                  : `Net Worth (Highest) · ${ageAtMonthOffset(peakData.month)}y`}
-              </Text>
-              <Text style={[styles.heroStatValue, styles.accentText]}>
-                {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : peakData.balance)}
-              </Text>
-            </View>
+            {drawdownActive && (
+              <View style={styles.heroStatCol}>
+                <Text style={styles.heroStatLabel}>Desired Retirement Income</Text>
+                <Text style={[styles.heroStatValue, styles.drawdownText]}>
+                  {formatCurrency(parsedDrawdown)}
+                  <Text style={styles.heroDrawdownSub}> / yr</Text>
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.heroDrawdownRow}>
@@ -1062,21 +1061,22 @@ export default function CalculatorScreen() {
             <View style={styles.heroAgeRow}>
               <View style={styles.heroAgeContent}>
                 <View style={styles.heroDrawdownContent}>
+                  <Text style={styles.heroStatLabel}>
+                    {touchMonth !== null
+                      ? `Net Worth · ${ageAtMonthOffset(touchMonth)}y`
+                      : `Net Worth (Highest) · ${ageAtMonthOffset(peakData.month)}y`}
+                  </Text>
+                  <Text style={[styles.heroStatValue, styles.accentText]}>
+                    {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : peakData.balance)}
+                  </Text>
+                </View>
+                <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
                   <Text style={styles.heroStatLabel}>Safe Withdrawal Rate (3.5%)</Text>
                   <Text style={[styles.heroStatValue, styles.drawdownText]}>
                     {formatCurrency((touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
                     <Text style={styles.heroDrawdownSub}>{" "}/ yr</Text>
                   </Text>
                 </View>
-                {drawdownActive && (
-                  <View style={[styles.heroDrawdownContent, { marginTop: 12 }]}>
-                    <Text style={styles.heroStatLabel}>Desired Retirement Income</Text>
-                    <Text style={[styles.heroStatValue, styles.drawdownText]}>
-                      {formatCurrency(parsedDrawdown)}
-                      <Text style={styles.heroDrawdownSub}> / yr</Text>
-                    </Text>
-                  </View>
-                )}
               </View>
               <View style={styles.heroAgeBlock}>
                 <Text style={styles.heroAgeValue}>
@@ -1529,6 +1529,7 @@ function makeStyles(
       marginBottom: 20,
     },
     heroStats: { flexDirection: "row", alignItems: "center" },
+    heroStatCol: { flex: 1 },
     heroStatLabel: {
       fontSize: 12,
       fontFamily: "Inter_400Regular",
@@ -1566,6 +1567,7 @@ function makeStyles(
     heroAgeContent: { flex: 1 },
     heroAgeBlock: {
       alignItems: "center",
+      width: 84,
       paddingLeft: 16,
       borderLeftWidth: 1,
       borderLeftColor: "rgba(255,255,255,0.12)",
@@ -1575,6 +1577,8 @@ function makeStyles(
       fontFamily: "Inter_700Bold",
       color: "#f59e0b",
       lineHeight: 70,
+      minWidth: 48,
+      textAlign: "center",
     },
     heroAgeLabel: {
       fontSize: 10,
