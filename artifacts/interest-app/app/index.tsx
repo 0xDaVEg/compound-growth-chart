@@ -1566,10 +1566,9 @@ function makeStyles(
     },
     heroAgeContent: { flex: 1 },
     heroAgeBlock: {
+      flex: 1,
       alignItems: "center",
-      width: 84,
-      paddingLeft: 16,
-      marginRight: 72,
+      paddingLeft: 24,
       borderLeftWidth: 1,
       borderLeftColor: "rgba(255,255,255,0.12)",
     },
