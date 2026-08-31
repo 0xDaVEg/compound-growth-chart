@@ -1040,7 +1040,7 @@ export default function CalculatorScreen() {
           <Text style={styles.heroLabel}>TOTAL PROJECTED RETIREMENT POT</Text>
           <Text style={styles.heroBalance}>{formatCurrency(balanceAtRetirement)}</Text>
           <View style={styles.heroStats}>
-            <View style={styles.heroStatCol}>
+            <View style={styles.heroStatColWide}>
               <Text style={styles.heroStatLabel}>Total Invested</Text>
               <Text style={styles.heroStatValue}>{formatCurrency(totalInvested)}</Text>
             </View>
@@ -1530,6 +1530,7 @@ function makeStyles(
     },
     heroStats: { flexDirection: "row", alignItems: "center" },
     heroStatCol: { flex: 1 },
+    heroStatColWide: { flex: 1.6 },
     heroStatLabel: {
       fontSize: 12,
       fontFamily: "Inter_400Regular",
@@ -1564,7 +1565,7 @@ function makeStyles(
       justifyContent: "space-between",
       gap: 16,
     },
-    heroAgeContent: { flex: 1 },
+    heroAgeContent: { flex: 1.6 },
     heroAgeBlock: {
       flex: 1,
       alignItems: "center",
