@@ -1047,7 +1047,7 @@ export default function CalculatorScreen() {
             <View style={styles.heroDivider} />
             {drawdownActive && (
               <View style={styles.heroStatCol}>
-                <Text style={styles.heroStatLabel}>Desired Retirement Income</Text>
+                <Text style={styles.heroStatLabel}>Desired Income</Text>
 <Text style={[styles.heroStatValue, styles.accentText]}>
   {formatCurrency(parsedDrawdown)}
   <Text style={styles.heroDrawdownSub}> / yr</Text>
