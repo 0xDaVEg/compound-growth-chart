@@ -1779,13 +1779,14 @@ function makeStyles(
     },
     entryDualBadge: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "flex-end",
       gap: 24,
       marginBottom: 12,
     },
     entryDualCol: {
       flexDirection: "column",
       alignItems: "flex-start",
+      justifyContent: "flex-end",
       gap: 1,
     },
     entryFields: { flexDirection: "row" },
