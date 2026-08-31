@@ -1269,21 +1269,26 @@ export default function CalculatorScreen() {
                   </View>
                 ) : (
                   <>
-                    <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
-                      {formatCurrency(
-                        retirementMonth !== null
-                          ? entry.data![retirementMonth]?.balance ?? 0
-                          : entry.data![entry.data!.length - 1]?.balance ?? 0
-                      )}
-                    </Text>
-                    <Text style={styles.entryFinalSub}>
-                      {retirementMonth !== null
-                        ? "at retirement"
-                        : `in ${months >= 12 ? `${months / 12}yr` : `${months}mo`}`}
-                    </Text>
-                    {retirementMonth !== null && (
+                    {retirementMonth !== null ? (
+                      <View style={styles.entryDualBadge}>
+                        <View style={styles.entryDualCol}>
+                          <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
+                            {formatCurrency(entry.data![retirementMonth]?.balance ?? 0)}
+                          </Text>
+                          <Text style={styles.entryFinalSub}>at retirement</Text>
+                        </View>
+                        <View style={styles.entryDualCol}>
+                          <Text style={[styles.entryFinalLabel, { color: entry.color, fontSize: 16 }]}>
+                            {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
+                          </Text>
+                          <Text style={styles.entryFinalSub}>
+                            in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
                       <>
-                        <Text style={[styles.entryFinalLabel, { color: entry.color, fontSize: 16 }]}>
+                        <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
                           {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
                         </Text>
                         <Text style={styles.entryFinalSub}>
@@ -1771,6 +1776,17 @@ function makeStyles(
       fontSize: 12,
       fontFamily: "Inter_400Regular",
       color: colors.mutedForeground,
+    },
+    entryDualBadge: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 24,
+      marginBottom: 12,
+    },
+    entryDualCol: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: 1,
     },
     entryFields: { flexDirection: "row" },
     entryContribRow: {
