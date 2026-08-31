@@ -1227,9 +1227,6 @@ export default function CalculatorScreen() {
                 Capital gains tax · {Math.round(CGT_RATE * 100)}% on gains above{" "}
                 {formatCurrency(CGT_ALLOWANCE)}/yr
               </Text>
-              <Text style={[styles.cgtValue, { color: CGT_COLOR }]}>
-                {formatCurrency(simResult.totalCgtPaid)}
-              </Text>
             </View>
           )}
           {simResult.gaps.length > 0 && (
@@ -1708,15 +1705,7 @@ function makeStyles(
       marginTop: 8,
     },
     cgtRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
       marginTop: 8,
-    },
-    cgtValue: {
-      fontSize: 15,
-      fontFamily: "Inter_700Bold",
     },
     taxClassRow: { flexDirection: "row", gap: 6 },
     taxClassChip: {
