@@ -1155,7 +1155,7 @@ export default function CalculatorScreen() {
           {/* Time Period Presets */}
           <View style={styles.chartDivider} />
           <View style={styles.timeLabelRow}>
-            <Text style={styles.fieldLabel}>TIME PERIOD</Text>
+             <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>TIME PERIOD</Text>
             <Text style={styles.timeValue}>
               {months >= 12
                 ? `${months / 12 === Math.floor(months / 12) ? months / 12 : (months / 12).toFixed(1)} yr`
@@ -1180,7 +1180,7 @@ export default function CalculatorScreen() {
           {/* Retirement Income */}
           <View style={styles.chartDivider} />
           <View style={styles.timeLabelRow}>
-            <Text style={styles.fieldLabel}>DESIRED RETIREMENT INCOME</Text>
+            <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>DESIRED RETIREMENT INCOME</Text>
             {drawdownActive && (
               <Text style={styles.drawdownHintActive}>
                 from age {parsedRetirementAge} · {yearAtMonthOffset(drawdownStart! + 1)}
