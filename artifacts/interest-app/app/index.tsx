@@ -1137,6 +1137,21 @@ export default function CalculatorScreen() {
             })()}
           </View>
 
+          {drawdownActive && (
+            <View style={[styles.pensionRow, { marginTop: 12 }]}>
+              <Text style={styles.pensionLabel}>
+                UK state pension · {formatCurrency(STATE_PENSION_ANNUAL)}/yr from age{" "}
+                {STATE_PENSION_AGE}, rises with inflation
+              </Text>
+              <Switch
+                value={statePensionEnabled}
+                onValueChange={setStatePensionEnabled}
+                trackColor={{ true: "#14b8a6", false: Platform.OS === "ios" ? "#e4eaf2" : "#a8a29e" }}
+                thumbColor="#ffffff"
+              />
+            </View>
+          )}
+
           {/* Time Period Presets */}
           <View style={styles.chartDivider} />
           <View style={styles.timeLabelRow}>
@@ -1206,20 +1221,6 @@ export default function CalculatorScreen() {
               ? "Enter your retirement age"
               : "Retirement falls beyond the selected time period"}
           </Text>
-          {drawdownActive && (
-            <View style={styles.pensionRow}>
-              <Text style={styles.pensionLabel}>
-                UK state pension · {formatCurrency(STATE_PENSION_ANNUAL)}/yr from age{" "}
-                {STATE_PENSION_AGE}, rises with inflation
-              </Text>
-              <Switch
-                value={statePensionEnabled}
-                onValueChange={setStatePensionEnabled}
-                trackColor={{ true: "#14b8a6", false: Platform.OS === "ios" ? "#e4eaf2" : "#a8a29e" }}
-                thumbColor="#ffffff"
-              />
-            </View>
-          )}
           {simResult.totalCgtPaid > 0 && (
             <View style={styles.cgtRow}>
               <Text style={[styles.pensionLabel, { color: CGT_COLOR }]}>
