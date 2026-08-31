@@ -928,6 +928,14 @@ export default function CalculatorScreen() {
   const retirementMonth = drawdownStart !== null && drawdownStart <= months ? drawdownStart : null;
   const balanceAtRetirement = retirementMonth !== null ? (totalData[retirementMonth]?.balance ?? 0) : totalFinal;
 
+  const peakData = useMemo(() => {
+    let max = 0, maxMonth = 0;
+    for (let m = 0; m < totalData.length; m++) {
+      if (totalData[m].balance > max) { max = totalData[m].balance; maxMonth = m; }
+    }
+    return { balance: max, month: maxMonth };
+  }, [totalData]);
+
   const toggleExclude = (id: string) => {
     Haptics.selectionAsync();
     setExcludedIds((prev) => {
@@ -1038,9 +1046,13 @@ export default function CalculatorScreen() {
             </View>
             <View style={styles.heroDivider} />
             <View>
-              <Text style={styles.heroStatLabel}>Total</Text>
+              <Text style={styles.heroStatLabel}>
+                {touchMonth !== null
+                  ? `Net Worth (${ageAtMonthOffset(touchMonth)}y)`
+                  : `Worth (Highest - ${ageAtMonthOffset(peakData.month)}y)`}
+              </Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
-                {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : totalFinal)}
+                {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : peakData.balance)}
               </Text>
             </View>
           </View>
@@ -1052,7 +1064,7 @@ export default function CalculatorScreen() {
               <Text style={[styles.heroStatValue, styles.drawdownText]}>
                 {formatCurrency((touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : balanceAtRetirement) * 0.035)}
                 <Text style={styles.heroDrawdownSub}>
-                  {" "}/ yr{touchMonth !== null ? ` · ${yearAtMonthOffset(touchMonth)}` : ""}
+                  {" "}/ yr{touchMonth !== null ? ` · ${ageAtMonthOffset(touchMonth)}y` : ""}
                 </Text>
               </Text>
             </View>
@@ -1258,11 +1270,27 @@ export default function CalculatorScreen() {
                 ) : (
                   <>
                     <Text style={[styles.entryFinalLabel, { color: entry.color }]}>
-                      {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
+                      {formatCurrency(
+                        retirementMonth !== null
+                          ? entry.data![retirementMonth]?.balance ?? 0
+                          : entry.data![entry.data!.length - 1]?.balance ?? 0
+                      )}
                     </Text>
                     <Text style={styles.entryFinalSub}>
-                      in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
+                      {retirementMonth !== null
+                        ? "at retirement"
+                        : `in ${months >= 12 ? `${months / 12}yr` : `${months}mo`}`}
                     </Text>
+                    {retirementMonth !== null && (
+                      <>
+                        <Text style={[styles.entryFinalLabel, { color: entry.color, fontSize: 16 }]}>
+                          {formatCurrency(entry.data![entry.data!.length - 1]?.balance ?? 0)}
+                        </Text>
+                        <Text style={styles.entryFinalSub}>
+                          in {months >= 12 ? `${months / 12}yr` : `${months}mo`}
+                        </Text>
+                      </>
+                    )}
                   </>
                 )}
               </View>
