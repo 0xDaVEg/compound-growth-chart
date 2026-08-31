@@ -1048,8 +1048,8 @@ export default function CalculatorScreen() {
             <View>
               <Text style={styles.heroStatLabel}>
                 {touchMonth !== null
-                  ? `Net Worth (${ageAtMonthOffset(touchMonth)}y)`
-                  : `Worth (Highest - ${ageAtMonthOffset(peakData.month)}y)`}
+                  ? `Net Worth · ${ageAtMonthOffset(touchMonth)}y`
+                  : `Net Worth (Highest) · ${ageAtMonthOffset(peakData.month)}y`}
               </Text>
               <Text style={[styles.heroStatValue, styles.accentText]}>
                 {formatCurrency(touchMonth !== null ? totalData[touchMonth]?.balance ?? 0 : peakData.balance)}
